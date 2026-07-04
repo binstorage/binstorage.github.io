@@ -115,3 +115,39 @@
 		background-color: #0d0d0d;
 	}
 }
+.dark .info-table {
+	th {
+		background-color: #1e1e1e;
+	}
+	td {
+		background-color: #171717;
+	}
+}
+.dark .skill-tag {
+	background-color: #1a2a3a;
+	color: #4da3ff;
+}
+.dark .timeline-item {
+	background-color: #1e1e1e;
+	border-left-color: #4da3ff;
+	.timeline-header h3 {
+		color: #f6f6f6;
+	}
+}
+.dark .project-card {
+	background-color: #1e1e1e;
+	border-color: #333;
+	&:hover {
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+	}
+	h3 {
+		color: #f6f6f6;
+	}
+	.project-desc {
+		color: #ccc;
+	}
+}
+.dark .section-title {
+	color: #f6f6f6;
+	border-bottom-color: #4da3ff;
+}

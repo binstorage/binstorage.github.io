@@ -47,6 +47,14 @@ plainwhite:
     # - username: jekyll2
     #   instance: example.com
 
+  navigation:
+    - title: 이력서
+      url: /resume
+    - title: 경력 기술서
+      url: /career
+    - title: 포트폴리오
+      url: /portfolio
+
 # If you want to link only specific pages in your header, uncomment
 # this and add the path to the pages in order as they should show up
 #header_pages:
