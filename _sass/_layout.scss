@@ -1,0 +1,29 @@
+.site {
+  display: flex;
+  min-height: 100vh;
+
+  &__sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--sidebar-width);
+    height: 100vh;
+    overflow-y: auto;
+    background-color: var(--color-sidebar-bg);
+    border-right: 1px solid var(--color-border);
+    transition: background-color var(--transition-speed), border-color var(--transition-speed);
+    z-index: 100;
+  }
+
+  &__content {
+    margin-left: var(--sidebar-width);
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.content-wrapper {
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding: var(--spacing-2xl) var(--spacing-xl);
+}

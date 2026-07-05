@@ -1,0 +1,45 @@
+:root {
+  --color-bg: #ffffff;
+  --color-bg-secondary: #f8f9fa;
+  --color-text: #212529;
+  --color-text-secondary: #6c757d;
+  --color-heading: #1a1a2e;
+  --color-link: #0a59b0;
+  --color-link-hover: #084a90;
+  --color-border: #dee2e6;
+  --color-sidebar-bg: #f8f9fa;
+  --color-sidebar-active: #e8f0fe;
+  --color-sidebar-active-text: #0a59b0;
+  --color-tag-bg: #e9ecef;
+  --color-tag-text: #495057;
+  --color-card-bg: #ffffff;
+  --color-card-shadow: rgba(0, 0, 0, 0.08);
+  --color-table-header-bg: #f1f3f5;
+  --color-table-border: #dee2e6;
+  --color-table-stripe: #f8f9fa;
+  --color-toggle-bg: #ced4da;
+  --color-toggle-knob: #ffffff;
+
+  --font-sans: 'Inter', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-size-base: 16px;
+  --font-size-sm: 14px;
+  --font-size-xs: 12px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
+  --font-size-2xl: 32px;
+
+  --sidebar-width: 280px;
+  --content-max-width: 800px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --transition-speed: 0.2s;
+}

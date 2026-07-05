@@ -1,0 +1,205 @@
+// Info table (used in resume, career)
+.info-table {
+  width: 100%;
+  margin-bottom: var(--spacing-lg);
+  border: 1px solid var(--color-table-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+
+  th, td {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--color-table-border);
+    font-size: var(--font-size-sm);
+    vertical-align: middle;
+  }
+
+  th {
+    background-color: var(--color-table-header-bg);
+    font-weight: 600;
+    white-space: nowrap;
+    width: 1%;
+  }
+
+  td {
+    background-color: var(--color-bg);
+    transition: background-color var(--transition-speed);
+  }
+
+  tr:nth-child(even) td {
+    background-color: var(--color-table-stripe);
+  }
+}
+
+// Timeline item (used in career, resume)
+.timeline-item {
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  background-color: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 3px var(--color-card-shadow);
+  transition: background-color var(--transition-speed), border-color var(--transition-speed), box-shadow var(--transition-speed);
+
+  .timeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+
+    h3 {
+      margin-bottom: 0;
+      color: var(--color-heading);
+    }
+  }
+
+  .timeline-period {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    transition: color var(--transition-speed);
+  }
+
+  .timeline-role {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-md);
+    transition: color var(--transition-speed);
+  }
+
+  h4 {
+    margin-top: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  ul {
+    padding-left: var(--spacing-lg);
+    list-style: disc;
+    margin-bottom: var(--spacing-sm);
+
+    li {
+      font-size: var(--font-size-sm);
+      line-height: 1.6;
+      margin-bottom: var(--spacing-xs);
+    }
+  }
+
+  p {
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+  }
+}
+
+// Skill tags
+.skill-group {
+  margin-bottom: var(--spacing-md);
+
+  h4 {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-sm);
+  }
+}
+
+.skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.skill-tag {
+  display: inline-block;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--color-tag-bg);
+  color: var(--color-tag-text);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--transition-speed), color var(--transition-speed);
+}
+
+// Project cards (portfolio)
+.project-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+.project-card {
+  padding: var(--spacing-lg);
+  background-color: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 3px var(--color-card-shadow);
+  transition: background-color var(--transition-speed), border-color var(--transition-speed), box-shadow var(--transition-speed), transform var(--transition-speed);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--color-card-shadow);
+  }
+
+  h3 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .project-period {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-sm);
+    transition: color var(--transition-speed);
+  }
+
+  .project-desc {
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+    margin-bottom: var(--spacing-md);
+  }
+
+  .project-links {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+
+    a {
+      font-size: var(--font-size-sm);
+      font-weight: 500;
+      color: var(--color-link);
+
+      &:hover {
+        color: var(--color-link-hover);
+      }
+    }
+  }
+}
+
+// Skill summary (portfolio)
+.skill-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.skill-category {
+  h4 {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    margin-bottom: var(--spacing-sm);
+    color: var(--color-text-secondary);
+  }
+}
+
+// Resume / Career page wrappers
+.resume-page,
+.career-page,
+.portfolio-page {
+  // These wrapper classes exist in the markdown content
+  // They don't need special styles, just ensuring they exist
+}

@@ -1,0 +1,60 @@
+@media (max-width: 768px) {
+  .hamburger {
+    display: flex;
+  }
+
+  .site {
+    &__sidebar {
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
+
+      &--open {
+        transform: translateX(0);
+      }
+    }
+
+    &__content {
+      margin-left: 0;
+    }
+  }
+
+  .content-wrapper {
+    padding: var(--spacing-xl) var(--spacing-md);
+    padding-top: calc(var(--spacing-xl) + 56px); // space for hamburger
+  }
+
+  .page-title {
+    font-size: var(--font-size-xl);
+  }
+
+  .timeline-item {
+    padding: var(--spacing-md);
+
+    .timeline-header {
+      flex-direction: column;
+      gap: var(--spacing-xs);
+    }
+  }
+
+  .project-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .skill-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .info-table {
+    font-size: var(--font-size-xs);
+
+    th, td {
+      padding: var(--spacing-xs) var(--spacing-sm);
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .skill-summary {
+    grid-template-columns: 1fr;
+  }
+}

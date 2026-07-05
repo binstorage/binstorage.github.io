@@ -1,0 +1,8 @@
+.DS_Store
+_site/
+.claude/
+*.pdf
+Gemfile.lock
+.sass-cache/
+.jekyll-cache/
+.jekyll-metadata

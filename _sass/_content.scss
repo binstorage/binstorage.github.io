@@ -1,0 +1,35 @@
+.page-title {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--color-heading);
+  margin-bottom: var(--spacing-xl);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 2px solid var(--color-border);
+  transition: color var(--transition-speed), border-color var(--transition-speed);
+}
+
+.page-content {
+  h2 {
+    margin-top: var(--spacing-xl);
+    padding-bottom: var(--spacing-sm);
+  }
+
+  h3 {
+    margin-top: var(--spacing-lg);
+  }
+
+  h4 {
+    margin-top: var(--spacing-md);
+    color: var(--color-text-secondary);
+    font-weight: 600;
+    transition: color var(--transition-speed);
+  }
+
+  > ul, > ol {
+    margin-bottom: var(--spacing-lg);
+  }
+}
+
+.section-title {
+  position: relative;
+}
