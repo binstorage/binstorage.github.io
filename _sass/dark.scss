@@ -53,6 +53,10 @@
 	a {
 		color: $dark_link_color;
 	}
+	.navigation a.active {
+		color: #fff;
+		font-weight: bold;
+	}
 	#title a {
 		color: #fff;
 		&:hover {

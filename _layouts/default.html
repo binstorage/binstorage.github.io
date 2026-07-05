@@ -140,7 +140,7 @@
         <ul>
           {% for link in site.plainwhite.navigation %}
           <li>
-            <a href="{{ link.url }}">{{ link.title }}</a>
+            <a href="{{ link.url }}" {% if page.url == link.url or page.permalink == link.url or page.url == link.url | append: "/" %}class="active"{% endif %}>{{ link.title }}</a>
           </li>
           {% endfor %}
         </ul>
