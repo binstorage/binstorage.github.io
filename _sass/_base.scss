@@ -38,15 +38,17 @@ hr {
   transition: border-color var(--transition-speed);
 }
 
-ul, ol {
+// List styles only inside page content
+.page-content ul,
+.page-content ol {
   padding-left: var(--spacing-lg);
   margin-bottom: var(--spacing-md);
 }
 
-ul { list-style: disc; }
-ol { list-style: decimal; }
+.page-content ul { list-style: disc; }
+.page-content ol { list-style: decimal; }
 
-li {
+.page-content li {
   margin-bottom: var(--spacing-xs);
   line-height: 1.7;
 }
