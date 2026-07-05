@@ -26,10 +26,6 @@ permalink: /resume/
     <th>주소</th>
     <td colspan="3">서울 동작구 신대방동</td>
   </tr>
-  <tr>
-    <th>GitHub</th>
-    <td colspan="3">https://github.com/binstorage</td>
-  </tr>
 </table>
 
 ---
@@ -64,7 +60,7 @@ permalink: /resume/
     <td>졸업 (학점 3.7 / 4.5)</td>
   </tr>
   <tr>
-    <td>~ 2014</td>
+    <td>2011 - 2014</td>
     <td>청석고등학교</td>
     <td>-</td>
     <td>졸업</td>
@@ -145,6 +141,7 @@ permalink: /resume/
     <span class="skill-tag">Combine</span>
     <span class="skill-tag">RxSwift</span>
     <span class="skill-tag">TCA</span>
+    <span class="skill-tag">ReactorKit</span>
   </div>
 </div>
 
@@ -167,6 +164,7 @@ permalink: /resume/
     <span class="skill-tag">Tuist</span>
     <span class="skill-tag">Swift Package</span>
     <span class="skill-tag">Packaging</span>
+    <span class="skill-tag">RIBs</span>
   </div>
 </div>
 
