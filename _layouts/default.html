@@ -139,8 +139,9 @@
       <nav class="navigation about-footer {{condensed_class}}">
         <ul>
           {% for link in site.plainwhite.navigation %}
+          {% assign link_with_slash = link.url | append: "/" %}
           <li>
-            <a href="{{ link.url }}" {% if page.url == link.url or page.permalink == link.url or page.url == link.url | append: "/" %}class="active"{% endif %}>{{ link.title }}</a>
+            <a href="{{ link.url }}" {% if page.url == link.url or page.url == link_with_slash %}class="active"{% endif %}>{{ link.title }}</a>
           </li>
           {% endfor %}
         </ul>
