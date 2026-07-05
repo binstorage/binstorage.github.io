@@ -140,9 +140,15 @@
         <ul>
           {% for link in site.plainwhite.navigation %}
           {% assign link_with_slash = link.url | append: "/" %}
+          {% if page.url == link.url or page.url == link_with_slash %}
           <li>
-            <a href="{{ link.url }}" {% if page.url == link.url or page.url == link_with_slash %}class="active"{% endif %}>{{ link.title }}</a>
+            <a href="{{ link.url }}" style="background-color:#e8f0fe;color:#0a59b0;font-weight:bold;border-radius:6px;">{{ link.title }}</a>
           </li>
+          {% else %}
+          <li>
+            <a href="{{ link.url }}">{{ link.title }}</a>
+          </li>
+          {% endif %}
           {% endfor %}
         </ul>
       </nav>
