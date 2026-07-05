@@ -7,7 +7,7 @@ permalink: /career/
 <div class="career-page">
 
 ## 경력 요약
-{: .section-title}
+
 
 <table class="info-table">
   <tr>
@@ -33,7 +33,7 @@ permalink: /career/
 ---
 
 ## 경력 상세
-{: .section-title}
+
 
 <div class="timeline-item">
   <div class="timeline-header">
@@ -83,7 +83,7 @@ permalink: /career/
 ---
 
 ## 프로젝트 이력
-{: .section-title}
+
 
 <div class="timeline-item">
   <div class="timeline-header">

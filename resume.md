@@ -7,7 +7,7 @@ permalink: /resume/
 <div class="resume-page">
 
 ## 기본 정보
-{: .section-title}
+
 
 <table class="info-table">
   <tr>
@@ -35,7 +35,7 @@ permalink: /resume/
 ---
 
 ## 자기소개
-{: .section-title}
+
 
 **"그냥 해봐 할 수 있어!"** 가장 제가 좋아하는 말입니다.
 
@@ -48,7 +48,7 @@ permalink: /resume/
 ---
 
 ## 학력
-{: .section-title}
+
 
 <table class="info-table">
   <tr>
@@ -74,7 +74,7 @@ permalink: /resume/
 ---
 
 ## 병역사항
-{: .section-title}
+
 
 <table class="info-table">
   <tr>
@@ -94,7 +94,7 @@ permalink: /resume/
 ---
 
 ## 자격증 / 수상
-{: .section-title}
+
 
 <table class="info-table">
   <tr>
@@ -112,7 +112,7 @@ permalink: /resume/
 ---
 
 ## 인턴/대외활동
-{: .section-title}
+
 
 <div class="timeline-item">
   <div class="timeline-header">
@@ -125,7 +125,7 @@ permalink: /resume/
 ---
 
 ## 기술 스택
-{: .section-title}
+
 
 <div class="skill-group">
   <h4>Language</h4>
