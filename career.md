@@ -4,7 +4,7 @@ title: 경력 기술서
 permalink: /career/
 ---
 
-<div class="career-page">
+<div class="career-page" markdown="1">
 
 ## 경력 요약
 

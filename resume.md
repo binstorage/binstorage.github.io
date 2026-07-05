@@ -4,7 +4,7 @@ title: 이력서
 permalink: /resume/
 ---
 
-<div class="resume-page">
+<div class="resume-page" markdown="1">
 
 ## 기본 정보
 
