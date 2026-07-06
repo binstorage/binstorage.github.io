@@ -9,10 +9,6 @@ tagline: macOS, iOS Developer
 portfolio_image: "assets/portfolio.png"
 
 navigation:
-  - title: 이력서
-    url: /resume
-  - title: 경력 기술서
-    url: /career
   - title: 포트폴리오
     url: /portfolio
   - title: 기술 블로그
