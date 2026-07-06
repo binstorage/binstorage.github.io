@@ -1,0 +1,105 @@
+// Blog post list
+.post-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.post-card {
+  display: block;
+  padding: var(--spacing-lg);
+  background-color: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 3px var(--color-card-shadow);
+  text-decoration: none;
+  color: var(--color-text);
+  transition: background-color var(--transition-speed), border-color var(--transition-speed), box-shadow var(--transition-speed), transform var(--transition-speed);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--color-card-shadow);
+  }
+
+  &__title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-heading);
+    margin-bottom: var(--spacing-sm);
+    transition: color var(--transition-speed);
+  }
+
+  &__desc {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+    margin-bottom: var(--spacing-md);
+    transition: color var(--transition-speed);
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    transition: color var(--transition-speed);
+  }
+
+  &__categories {
+    display: flex;
+    gap: var(--spacing-xs);
+  }
+}
+
+.blog-empty {
+  text-align: center;
+  color: var(--color-text-secondary);
+  padding: var(--spacing-2xl) 0;
+  font-size: var(--font-size-sm);
+}
+
+// Single post article
+.post-article {
+  &__header {
+    margin-bottom: var(--spacing-xl);
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-sm);
+  }
+
+  &__date {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    transition: color var(--transition-speed);
+  }
+
+  &__categories {
+    display: flex;
+    gap: var(--spacing-xs);
+  }
+
+  &__content {
+    margin-bottom: var(--spacing-xl);
+  }
+
+  &__footer {
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+    transition: border-color var(--transition-speed);
+  }
+
+  &__back {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-link);
+
+    &:hover {
+      color: var(--color-link-hover);
+    }
+  }
+}

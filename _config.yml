@@ -15,6 +15,8 @@ navigation:
     url: /career
   - title: 포트폴리오
     url: /portfolio
+  - title: 기술 블로그
+    url: /blog
 
 sass:
   sass_dir: _sass
