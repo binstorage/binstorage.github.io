@@ -52,4 +52,34 @@
   for (var i = 0; i < navLinks.length; i++) {
     navLinks[i].addEventListener('click', closeMenu);
   }
+
+  // Blog category filter
+  var filterBtns = document.querySelectorAll('.blog-filter__btn');
+  if (filterBtns.length > 0) {
+    var postCards = document.querySelectorAll('.post-card[data-category]');
+
+    filterBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var category = this.getAttribute('data-category');
+
+        filterBtns.forEach(function (b) {
+          b.classList.remove('blog-filter__btn--active');
+        });
+        this.classList.add('blog-filter__btn--active');
+
+        postCards.forEach(function (card) {
+          if (category === 'all') {
+            card.classList.remove('post-card--hidden');
+          } else {
+            var cats = card.getAttribute('data-category').split(',');
+            if (cats.indexOf(category) !== -1) {
+              card.classList.remove('post-card--hidden');
+            } else {
+              card.classList.add('post-card--hidden');
+            }
+          }
+        });
+      });
+    });
+  }
 })();

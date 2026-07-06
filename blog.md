@@ -7,9 +7,15 @@ permalink: /blog/
 <div class="blog-page">
 
 {% if site.posts.size > 0 %}
+<div class="blog-filter">
+  <button class="blog-filter__btn blog-filter__btn--active" data-category="all">전체</button>
+  <button class="blog-filter__btn" data-category="iOS">iOS</button>
+  <button class="blog-filter__btn" data-category="macOS">macOS</button>
+</div>
+
 <div class="post-list">
   {% for post in site.posts %}
-  <a href="{{ post.url | relative_url }}" class="post-card">
+  <a href="{{ post.url | relative_url }}" class="post-card" data-category="{{ post.categories | join: ',' }}">
     <div class="post-card__content">
       <h3 class="post-card__title">{{ post.title | escape }}</h3>
       {% if post.description %}

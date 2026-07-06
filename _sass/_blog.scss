@@ -1,4 +1,41 @@
+// Blog category filter
+.blog-filter {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+
+  &__btn {
+    padding: var(--spacing-xs) var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-card-bg);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: background-color var(--transition-speed), color var(--transition-speed), border-color var(--transition-speed);
+
+    &:hover {
+      color: var(--color-text);
+      border-color: var(--color-text-secondary);
+    }
+
+    &--active {
+      background-color: var(--color-heading);
+      color: var(--color-bg);
+      border-color: var(--color-heading);
+
+      &:hover {
+        color: var(--color-bg);
+      }
+    }
+  }
+}
+
 // Blog post list
+.post-card--hidden {
+  display: none;
+}
+
 .post-list {
   display: flex;
   flex-direction: column;
