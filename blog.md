@@ -7,10 +7,19 @@ permalink: /blog/
 <div class="blog-page">
 
 {% if site.posts.size > 0 %}
+{% assign all_categories = "" | split: "" %}
+{% for post in site.posts %}
+  {% for cat in post.categories %}
+    {% unless all_categories contains cat %}
+      {% assign all_categories = all_categories | push: cat %}
+    {% endunless %}
+  {% endfor %}
+{% endfor %}
 <div class="blog-filter">
   <button class="blog-filter__btn blog-filter__btn--active" data-category="all">전체</button>
-  <button class="blog-filter__btn" data-category="iOS">iOS</button>
-  <button class="blog-filter__btn" data-category="macOS">macOS</button>
+  {% for cat in all_categories %}
+  <button class="blog-filter__btn" data-category="{{ cat }}">{{ cat }}</button>
+  {% endfor %}
 </div>
 
 <div class="post-list">
