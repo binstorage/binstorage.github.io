@@ -220,6 +220,47 @@ func listener(_ listener: NSXPCListener,
 ---
 
 ## 메시지 전송 원리
+호출 시점부터 단계별로 보면:
+```
+1. Proxy 객체 획득
+
+swift
+connection.remoteObjectProxyWithErrorHandler { error in ... }
+
+이게 리턴하는 건 실제 원격 객체가 아니라 _NSXPCDistantObject라는 프록시예요. 이 객체는 NSXPCInterface에 지정된 프로토콜을 준수하는 것처럼 보이지만, 그 프로토콜의 메서드 구현을 실제로 갖고 있지 않습니다.
+
+2. 메시지 전송으로 안 가고 forwardInvocation:으로 감
+
+프록시에서 프로토콜 메서드를 호출하면, _NSXPCDistantObject는 해당 셀렉터에 대한 -methodSignatureForSelector:는 응답하지만 실제 IMP가 없어요. 그래서 Objective-C 런타임의 메시지 디스패치가 실패하고 **forwardInvocation:**으로 떨어집니다. 여기서 호출 정보(셀렉터, 인자들)가 NSInvocation 객체로 캡처돼요.
+
+3. NSXPCInterface가 인자 타입을 사전에 분석
+
+NSXPCInterface는 연결 셋업 시점에 프로토콜을 리플렉션해서 각 메서드의 인자 타입을 파악해 둡니다 (-setClasses:forSelector:argumentIndex:ofReply: 등). 이게 왜 중요하냐면:
+
+어떤 인자가 리플라이 블록인지
+어떤 인자가 NSSecureCoding을 준수해야 하는 객체인지
+어떤 인자가 또 다른 XPC 프록시(중첩 프록시)인지
+
+를 여기서 미리 알아야 직렬화 방식을 결정할 수 있거든요.
+
+4. Invocation → XPC 메시지로 인코딩
+
+NSInvocation이 xpc_object_t (사실상 dictionary)로 변환돼요. 셀렉터 이름, 각 인자의 인코딩된 값이 담기고, 인자가 NSSecureCoding 객체면 그 안에서 다시 NSKeyedArchiver 유사 방식으로 직렬화됩니다.
+
+5. mach_msg()로 실제 전송
+
+이 xpc dictionary가 저번에 얘기한 Mach port를 통해 전달됩니다. 리플라이 블록이 있으면, 그 블록 자체가 별도의 mach port(reply port)로 매핑돼서 함께 전송돼요 - 나중에 응답이 이 포트로 돌아올 수 있게.
+
+6. 수신측: 역직렬화 → 실제 객체에 invoke
+
+리스너 쪽에서 메시지를 받으면 NSInvocation으로 재구성하고, exportedObject(실제 구현체)에 대고 -invokeWithTarget:을 호출합니다. 이 시점에 비로소 실제 메서드 바디가 실행돼요.
+
+7. 리턴/리플라이 경로
+
+리플라이 블록을 실행측에서 호출하면, 그 호출 자체도 대칭적으로 캡처→직렬화→reply port로 전송되고, 원래 호출한 쪽에서 그 블록이 실행됩니다.
+
+핵심 포인트: 클라이언트 입장에서 동기 메서드처럼 보이지만 실제로는 forwardInvocation: 트랩 → NSInvocation 캡처 → xpc 메시지 인코딩 → mach_msg 전송 → 원격 invoke → (필요시) 대칭적 리플라이 전송의 파이프라인이 매 호출마다 도는 거예요. 그래서 XPC 메서드 호출이 일반 Objective-C 메시지 전송보다 오버헤드가 훨씬 크고, 인자로 넘기는 객체가 NSSecureCoding을 안 지키면 런타임에 크래시 나는 이유도 여기 있습니다 (5번 단계에서 인코딩 실패).
+```
 
 연결이 수립된 후 실제 메시지가 어떻게 전달되는지 설명합니다.
 
