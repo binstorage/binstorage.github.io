@@ -496,6 +496,306 @@ func listener(_ listener: NSXPCListener,
 
 ---
 
+## LaunchDaemon과 Network Extension — MachServiceName 등록 경로의 차이
+
+지금까지 설명한 MachServiceName 등록은 LaunchDaemon plist에 직접 선언하는 방식이었습니다. 그런데 Network Extension(System Extension)도 MachServiceName을 사용하여 XPC 통신을 합니다. 두 방식은 **등록 경로**가 다르지만, 최종적으로 **같은 launchd `system/` 도메인**에 등록됩니다.
+
+### LaunchDaemon — 직접 등록
+
+```
+plist 파일을 /Library/LaunchDaemons/에 배치
+    → launchd가 직접 로드
+    → system/ 도메인에 MachServices 등록
+```
+
+```xml
+<!-- /Library/LaunchDaemons/com.example.helper.plist -->
+<key>MachServices</key>
+<dict>
+    <key>com.example.helper</key>
+    <true/>
+</dict>
+```
+
+개발자가 plist 파일을 작성하고, `SMJobBless` 등으로 설치하면 launchd가 이 plist를 읽어 MachServices를 직접 등록합니다.
+
+### Network Extension (System Extension) — sysextd 경유 등록
+
+```
+익스텐션 Info.plist에 NEMachServiceName 선언
+    → OSSystemExtensionManager로 활성화 요청
+    → sysextd가 바이너리를 /Library/SystemExtensions/에 복사
+    → sysextd가 launchd 설정을 생성
+    → launchd에 등록
+    → system/ 도메인에 MachServices 등록
+```
+
+```xml
+<!-- NetworkExtension.appex/Info.plist -->
+<key>NetworkExtension</key>
+<dict>
+    <key>NEProviderClasses</key>
+    <dict>
+        <key>com.apple.networkextension.packet-tunnel</key>
+        <string>$(PRODUCT_MODULE_NAME).PacketTunnelProvider</string>
+    </dict>
+    <key>NEMachServiceName</key>
+    <string>$(TeamIdentifierPrefix)com.example.app.extension</string>
+</dict>
+```
+
+개발자가 LaunchDaemon plist를 직접 작성하지 않습니다. `sysextd`(systemextensionsd)가 중간에서 launchd 설정 생성과 등록을 대행합니다.
+
+### 등록 경로는 다르지만, 도착지는 같다
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    launchd system/ 도메인                 │
+│                                                         │
+│   ┌───────────────────────────────────────────────┐     │
+│   │ "com.example.helper"              → port 0x307│ ◄── LaunchDaemon plist에서 직접 등록
+│   │ "TEAMID.com.example.app.extension"→ port 0x50b│ ◄── sysextd가 대신 등록
+│   │ ...                                           │     │
+│   └───────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────┘
+```
+
+두 방식 모두 `launchctl print system/`으로 동일하게 확인할 수 있습니다. 클라이언트 입장에서 `NSXPCConnection(machServiceName:)`으로 연결하는 방식도 동일합니다. 차이는 등록이 **어떤 경로**를 거쳐 launchd에 도달하는가입니다.
+
+### 차이 정리
+
+| | LaunchDaemon | Network Extension (System Extension) |
+|---|---|---|
+| **MachServiceName 선언 위치** | LaunchDaemon plist의 `MachServices` 키 | 익스텐션 Info.plist의 `NEMachServiceName` 키 |
+| **등록 주체** | launchd가 plist를 직접 로드 | sysextd가 launchd 설정을 생성하여 등록 |
+| **최종 네임스페이스** | `system/` 도메인 | `system/` 도메인 (동일) |
+| **바이너리 위치** | `/Library/PrivilegedHelperTools/` 등 | `/Library/SystemExtensions/` |
+| **Team ID 접두사** | 불필요 | `$(TeamIdentifierPrefix)` 필수 |
+| **라이프사이클 관리** | launchd가 직접 on-demand 관리 | sysextd + NetworkExtension 프레임워크가 활성화/비활성화 관리 |
+| **확인 명령어** | `sudo launchctl print system/<label>` | 동일 + `systemextensionsctl list` |
+
+> **샌드박스와 네임스페이스의 관계**: System Extension의 샌드박스 여부는 등록되는 네임스페이스에 영향을 주지 않습니다. 샌드박스는 프로세스가 **런타임에 할 수 있는 행위**(파일 접근, 네트워크 등)를 제한하는 것이지, launchd 도메인 등록을 변경하는 것이 아닙니다.
+
+---
+
+## 터미널에서 검증하기
+
+지금까지 설명한 네임스페이스 등록, Mach 포트 할당, 서비스 매핑 등이 실제로 어떻게 존재하는지 터미널 명령어로 직접 확인할 수 있습니다. LaunchDaemon과 System Extension(Network Extension) 모두 동일한 명령어로 검증 가능합니다.
+
+### Bootstrap 네임스페이스 구조
+
+launchd는 여러 계층의 도메인(네임스페이스)을 관리합니다. `launchctl print` 명령으로 각 도메인의 상태를 조회할 수 있습니다.
+
+```
+도메인 계층 구조:
+
+system/                ← 시스템 데몬 (LaunchDaemon)
+gui/<uid>/             ← GUI 세션의 사용자 에이전트 (LaunchAgent)
+user/<uid>/            ← 사용자 도메인
+login/<asid>/          ← 로그인 세션 도메인
+pid/<pid>/             ← 프로세스별 도메인
+```
+
+```bash
+# 시스템 도메인 전체 조회 (LaunchDaemon 영역)
+sudo launchctl print system/
+
+# 현재 사용자의 GUI 도메인 조회 (LaunchAgent 영역)
+launchctl print gui/$(id -u)/
+
+# 사용자 도메인 조회
+launchctl print user/$(id -u)/
+```
+
+### 등록된 서비스(MachServiceName) 확인
+
+특정 MachServiceName이 launchd에 등록되어 있는지 확인하는 가장 직접적인 방법입니다.
+
+```bash
+# 시스템 도메인에서 특정 서비스 상세 정보 조회
+sudo launchctl print system/com.pribit.application.packetgo.switch.sase.HelperTool
+```
+
+출력 예시:
+
+```
+com.pribit.application.packetgo.switch.sase.HelperTool = {
+    active count = 1
+    path = /Library/PrivilegedHelperTools/com.pribit.application.packetgo.switch.sase.HelperTool
+    state = running
+
+    program = /Library/PrivilegedHelperTools/com.pribit.application.packetgo.switch.sase.HelperTool
+    ...
+    endpoints = {
+        "com.pribit.application.packetgo.switch.sase.HelperTool" = {
+            port = 0x7b30b
+            active = 1
+            managed = 1
+            reset = 0
+            hide = 0
+        }
+    }
+    ...
+}
+```
+
+여기서 `endpoints` 블록이 핵심입니다. plist의 `MachServices`에 선언한 이름이 실제로 Mach 포트와 매핑되어 있고, 해당 포트 번호(`0x7b30b`)까지 확인할 수 있습니다.
+
+```bash
+# 시스템 도메인 전체에서 endpoints(Mach 서비스)만 필터링
+sudo launchctl print system/ | grep -A 5 "endpoints"
+
+# 특정 서비스 이름이 어디에 등록되어 있는지 검색
+sudo launchctl dumpstate | grep "com.pribit.application.packetgo"
+```
+
+### 로드된 Job 목록 확인
+
+`launchctl list`는 현재 도메인에 로드된 모든 Job을 보여줍니다.
+
+```bash
+# 현재 사용자 도메인의 로드된 Job 목록
+launchctl list
+
+# 특정 서비스 필터링
+launchctl list | grep com.pribit
+
+# 출력 형식: PID, 종료 코드, 라벨
+#   PID     Status  Label
+#   1234    0       com.pribit.application.packetgo.switch.sase.HelperTool
+#   -       0       com.apple.some.unloaded.service
+```
+
+PID가 `-`인 항목은 로드는 되어 있지만 현재 프로세스가 실행되지 않은 상태(on-demand 대기)입니다. 앞서 설명한 launchd가 포트를 **대리 보유**하고 있는 상태에 해당합니다.
+
+### 프로세스의 Mach 포트 직접 확인
+
+`lsmp`(list mach ports) 명령으로 특정 프로세스가 보유한 Mach 포트와 권한을 직접 확인할 수 있습니다.
+
+```bash
+# 특정 PID의 Mach 포트 목록
+sudo lsmp -p <pid>
+```
+
+출력 예시:
+
+```
+Process (1234) : com.pribit.application.packetgo.switch.sase.HelperTool
+  name      ipc-object    rights     flags   boost  reqs  recv  send ...
+---------   ----------  ----------   -----   -----  ----  ----  ----
+0x00000307  0x7b30b123  recv         ------      0     -     1     0
+0x0000050b  0x2a1c4567  send         ------      0     -     0     1
+0x00000707  0x3d5e7890  send-once    ------      0     -     0     1
+...
+```
+
+| 컬럼 | 의미 |
+|------|------|
+| **name** | 태스크 로컬 포트 이름 (ipc_space 내의 인덱스) |
+| **ipc-object** | 커널 내부의 실제 포트 객체 식별자 |
+| **rights** | 이 프로세스가 해당 포트에 대해 가진 권한 (`recv`, `send`, `send-once`) |
+
+`recv` 권한을 가진 포트가 이 프로세스가 수신 대기하는 서비스 포트이고, `send` 권한을 가진 포트가 다른 프로세스에 메시지를 보낼 수 있는 포트입니다. 앞서 설명한 포트 권한 모델이 실제로 이렇게 존재함을 직접 확인할 수 있습니다.
+
+### plist에 선언된 MachServices 확인
+
+서비스가 어떤 MachServiceName으로 등록될 예정인지는 LaunchDaemon/LaunchAgent plist 파일에서 직접 확인할 수 있습니다.
+
+```bash
+# LaunchDaemon plist 위치
+ls /Library/LaunchDaemons/
+
+# 특정 plist에서 MachServices 키 확인
+plutil -p /Library/LaunchDaemons/com.pribit.application.packetgo.switch.sase.HelperTool.plist
+```
+
+출력 예시:
+
+```
+{
+  "Label" => "com.pribit.application.packetgo.switch.sase.HelperTool"
+  "MachServices" => {
+    "com.pribit.application.packetgo.switch.sase.HelperTool" => 1
+  }
+  "Program" => "/Library/PrivilegedHelperTools/com.pribit.application.packetgo.switch.sase.HelperTool"
+  ...
+}
+```
+
+`MachServices` 딕셔너리에 선언된 키가 곧 launchd에 등록되는 서비스 이름이며, 클라이언트가 `NSXPCConnection(machServiceName:)`에 전달하는 문자열과 정확히 일치해야 합니다.
+
+### System Extension(Network Extension) 상태 확인
+
+System Extension은 `systemextensionsctl`로 설치 및 활성화 상태를 확인할 수 있습니다.
+
+```bash
+# 설치된 System Extension 목록
+systemextensionsctl list
+```
+
+출력 예시:
+
+```
+1 extension(s)
+--- com.apple.system_extension.network_extension
+enabled  active  teamID     bundleID (version)                              name       [state]
+*        *       TEAMID1234 com.example.app.extension (1.0.0/1)             MyExtension [activated enabled]
+```
+
+System Extension의 MachServiceName도 `launchctl print system/`으로 동일하게 확인됩니다.
+
+```bash
+# System Extension의 MachService 확인 — LaunchDaemon과 동일한 명령어
+sudo launchctl print system/com.example.app.extension
+
+# System Extension 바이너리 위치 확인
+ls /Library/SystemExtensions/
+```
+
+### 실전 디버깅 흐름
+
+XPC 연결이 실패할 때 다음 순서로 확인하면 원인을 빠르게 좁힐 수 있습니다.
+
+**LaunchDaemon 기반 서비스:**
+
+```
+1. plist에 MachServices가 선언되어 있는가?
+   → plutil -p /Library/LaunchDaemons/<label>.plist
+
+2. Job이 launchd에 로드되어 있는가?
+   → sudo launchctl list | grep <label>
+
+3. 서비스 이름이 endpoint로 등록되어 있는가?
+   → sudo launchctl print system/<label> | grep endpoints -A 5
+
+4. 프로세스가 실행 중이고 receive right를 보유하고 있는가?
+   → sudo lsmp -p <pid>
+
+5. 클라이언트 코드의 machServiceName 문자열이 정확히 일치하는가?
+   → plist의 MachServices 키와 대소문자까지 비교
+```
+
+**Network Extension (System Extension) 기반 서비스:**
+
+```
+1. System Extension이 활성화되어 있는가?
+   → systemextensionsctl list
+
+2. sysextd가 launchd에 등록을 완료했는가?
+   → sudo launchctl print system/<bundleID>
+
+3. endpoint가 정상적으로 등록되어 있는가?
+   → sudo launchctl print system/<bundleID> | grep endpoints -A 5
+
+4. NEMachServiceName에 Team ID 접두사가 올바른가?
+   → Info.plist의 NEMachServiceName과 실제 Team ID 비교
+
+5. 프로세스가 실행 중이고 receive right를 보유하고 있는가?
+   → sudo lsmp -p <pid>
+```
+
+---
+
 ## 요약
 
 | 단계 | 위치 | 동작 |
