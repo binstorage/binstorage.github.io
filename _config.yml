@@ -20,3 +20,15 @@ sass:
 plugins:
   - jekyll-seo-tag
 
+
+collections:
+  portfolio:
+    output: true
+    permalink: /portfolio/:name/
+
+defaults:
+  - scope:
+      path: ""
+      type: portfolio
+    values:
+      layout: project

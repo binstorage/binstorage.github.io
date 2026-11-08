@@ -1,0 +1,32 @@
+---
+layout: default
+---
+<article class="post-article">
+  <header class="post-article__header">
+    <h1 class="page-title">{{ page.title | escape }}</h1>
+    <div class="post-article__meta">
+      {% if page.period %}
+      <span class="post-article__date">{{ page.period }}</span>
+      {% endif %}
+      {% if page.skills.size > 0 %}
+      <div class="post-article__categories">
+        {% for skill in page.skills %}
+        <span class="skill-tag">{{ skill }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% if page.github or page.demo %}
+    <div class="project-links">
+      {% if page.github %}<a href="{{ page.github }}">GitHub</a>{% endif %}
+      {% if page.demo %}<a href="{{ page.demo }}">Demo</a>{% endif %}
+    </div>
+    {% endif %}
+  </header>
+  <div class="page-content post-article__content">
+    {{ content }}
+  </div>
+  <footer class="post-article__footer">
+    <a href="{{ '/portfolio/' | relative_url }}" class="post-article__back">&larr; 포트폴리오로 돌아가기</a>
+  </footer>
+</article>

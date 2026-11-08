@@ -17,52 +17,24 @@ permalink: /portfolio/
 {: .section-title}
 
 <div class="project-cards">
-
+{% assign projects = site.portfolio | sort: "order" %}
+{% for project in projects %}
 <div class="project-card">
-  <h3>[프로젝트명 1]</h3>
-  <p class="project-period">[YYYY.MM - YYYY.MM]</p>
-  <p class="project-desc">[프로젝트에 대한 간략한 설명을 입력하세요. 어떤 문제를 해결했는지, 어떤 기능을 구현했는지 등을 기술합니다.]</p>
+  <h3><a href="{{ project.url | relative_url }}">{{ project.title | escape }}</a></h3>
+  {% if project.period %}<p class="project-period">{{ project.period }}</p>{% endif %}
+  {% if project.description %}<p class="project-desc">{{ project.description }}</p>{% endif %}
+  {% if project.skills.size > 0 %}
   <div class="skill-tags">
-    <span class="skill-tag">[기술1]</span>
-    <span class="skill-tag">[기술2]</span>
-    <span class="skill-tag">[기술3]</span>
+    {% for skill in project.skills %}<span class="skill-tag">{{ skill }}</span>{% endfor %}
   </div>
+  {% endif %}
   <div class="project-links">
-    <a href="[GitHub URL]">GitHub</a>
-    <a href="[Demo URL]">Demo</a>
+    <a href="{{ project.url | relative_url }}">자세히 보기</a>
+    {% if project.github %}<a href="{{ project.github }}">GitHub</a>{% endif %}
+    {% if project.demo %}<a href="{{ project.demo }}">Demo</a>{% endif %}
   </div>
 </div>
-
-<div class="project-card">
-  <h3>[프로젝트명 2]</h3>
-  <p class="project-period">[YYYY.MM - YYYY.MM]</p>
-  <p class="project-desc">[프로젝트에 대한 간략한 설명을 입력하세요. 어떤 문제를 해결했는지, 어떤 기능을 구현했는지 등을 기술합니다.]</p>
-  <div class="skill-tags">
-    <span class="skill-tag">[기술1]</span>
-    <span class="skill-tag">[기술2]</span>
-    <span class="skill-tag">[기술3]</span>
-  </div>
-  <div class="project-links">
-    <a href="[GitHub URL]">GitHub</a>
-    <a href="[Demo URL]">Demo</a>
-  </div>
-</div>
-
-<div class="project-card">
-  <h3>[프로젝트명 3]</h3>
-  <p class="project-period">[YYYY.MM - YYYY.MM]</p>
-  <p class="project-desc">[프로젝트에 대한 간략한 설명을 입력하세요. 어떤 문제를 해결했는지, 어떤 기능을 구현했는지 등을 기술합니다.]</p>
-  <div class="skill-tags">
-    <span class="skill-tag">[기술1]</span>
-    <span class="skill-tag">[기술2]</span>
-    <span class="skill-tag">[기술3]</span>
-  </div>
-  <div class="project-links">
-    <a href="[GitHub URL]">GitHub</a>
-    <a href="[Demo URL]">Demo</a>
-  </div>
-</div>
-
+{% endfor %}
 </div>
 
 ---
