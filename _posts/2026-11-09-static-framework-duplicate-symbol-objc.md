@@ -356,6 +356,58 @@ iOS에서는 같은 승격이 일어났지만 문제가 되지 않았다. App Bu
 
 HelperTool처럼 반드시 static이어야 하는 타겟이 있다면, **같은 프로세스 안에서 공유 패키지를 링크하는 동적 프레임워크를 두지 않는 것**이 가장 확실하다.
 
+### 승격된 패키지는 왜 .dylib이 아니라 .framework인가
+
+SwiftPM 패키지를 `swift build`로 빌드하면 동적 라이브러리는 `libD.dylib`로 나온다. 그런데 위 표에서 동적으로 승격된 Domain은 `Domain_…_PackageProduct.framework` 안에 확장자 없는 바이너리로 들어 있었다.
+
+Xcode에서 빌드할 때만 앱에 임베드하기 위해 `D.framework/D` 형태로 다시 포장하기 때문이다. iOS에서는 App Store가 앱 번들 안의 단독 dylib을 허용하지 않고 프레임워크 형태를 요구한다(Swift 런타임 같은 예외 제외). 그래서 포장되는 순간 프레임워크 관례를 따라 확장자가 사라진다.
+
+```bash
+file Domain_…_PackageProduct.framework/Domain_…_PackageProduct
+# Mach-O 64-bit dynamically linked shared library arm64
+```
+
+확장자만 없을 뿐 내용은 dylib 그대로다. `LC_LOAD_DYLIB`에도 `@rpath/D.framework/D` 경로로 기록된다.
+
+### otool -L에는 직접 의존성만 나온다
+
+동적 링크를 확인할 때 주의할 점이 하나 있다. 앱 번들의 `Frameworks/`에 프레임워크가 분명히 들어 있는데, 앱 실행 파일을 `otool -L`로 보면 목록에 없을 수 있다. 다음은 다른 iOS 프로젝트(Xcode 프레임워크 타겟으로 레이어를 나눈 구조)의 예다.
+
+```bash
+otool -L MicroApp_PresentationLayerModule.app/MicroApp_PresentationLayerModule
+# @rpath/PresentationLayerModule.framework/PresentationLayerModule
+# @rpath/RIBs.framework/RIBs
+# ... (DomainLayerModule 없음)
+
+ls MicroApp_PresentationLayerModule.app/Frameworks
+# DomainLayerModule.framework  PresentationLayerModule.framework  RIBs.framework ...
+```
+
+`otool -L`은 그 바이너리가 **직접** 기록한 `LC_LOAD_DYLIB`만 보여 주고, 의존성의 의존성은 따라가지 않는다. 프레임워크 바이너리를 하나씩 보면 관계가 드러난다.
+
+```bash
+otool -L Frameworks/PresentationLayerModule.framework/PresentationLayerModule
+# @rpath/DomainLayerModule.framework/DomainLayerModule   ← 여기서 링크
+# @rpath/UILayerModule.framework/UILayerModule
+# @rpath/RIBs.framework/RIBs
+# ...
+```
+
+```
+MicroApp_PresentationLayerModule (앱)
+├── PresentationLayerModule
+│   ├── DomainLayerModule
+│   │   └── ResourcesModule
+│   ├── UILayerModule
+│   │   └── ResourcesModule, PinLayout, Differentiator, Rx*
+│   └── RIBs, ReactorKit, RxCocoa, RxRelay, RxSwift
+└── RIBs
+```
+
+앱 코드가 직접 `import`해서 심볼을 쓰는 모듈은 `PresentationLayerModule`과 `RIBs`뿐이라 앱 바이너리에는 이 둘만 기록된다. 런타임에 dyld는 `PresentationLayerModule`을 로드하면서 그 `LC_LOAD_DYLIB`를 다시 읽고 `DomainLayerModule`을 연쇄적으로 로드한다. 간접 의존성도 `Frameworks/`에 임베드만 되어 있으면 정상 동작하고, 임베드가 빠지면 앱 바이너리에 기록되지 않았더라도 `Library not loaded`로 크래시한다.
+
+앞의 확인 방법에서 `otool -L`에 Domain이 "없다"는 것만으로는 근거가 약하다고 한 것도 같은 이유다. 앱 바이너리에는 없어도 다른 프레임워크를 통해 동적으로 로드될 수 있으므로, 정의된 심볼(`nm -gU`)과 외부 참조(`nm -u`)까지 함께 봐야 한다.
+
 ---
 
 ## 전환하면서 만난 함정
