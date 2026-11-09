@@ -288,3 +288,5 @@ Domain 코드가 HelperTool 바이너리 자체에 포함되어, Framework 파�
 | 바이너리 크기 | 증가 (코드 포함) | 작음 (참조만) |
 
 멀티 타겟 macOS 프로젝트에서 Dynamic Framework를 사용할 때는, **각 타겟의 실행 위치와 Framework 접근 가능 여부**를 반드시 확인해야 한다. 특히 HelperTool처럼 App Bundle 바깥에서 실행되는 타겟이 있다면, SPM 패키지의 링킹 타입 전파가 의도치 않은 크래시를 유발할 수 있다.
+
+> 후속 글: 이 해결책(Static Framework)이 이후 TCA 업데이트와 함께 duplicate symbol 문제로 이어진 과정은 [Static Framework의 패키지 이중 포함과 -ObjC — TCA 업데이트 후 터진 duplicate symbol]({% post_url 2026-11-09-static-framework-duplicate-symbol-objc %})에서 다룬다.
