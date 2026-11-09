@@ -248,11 +248,113 @@ HelperTool은 이전 글과 같은 방법으로 확인했다.
 otool -L /Library/PrivilegedHelperTools/HelperTool | grep -v -e /usr/lib/ -e /System/Library/
 # 결과: 시스템 라이브러리 외 의존 dylib 없음
 
-nm -m /Library/PrivilegedHelperTools/HelperTool | grep -c 6Domain
-# 결과: 28585 — Domain 코드가 바이너리에 포함됨
+# Domain 모듈이 직접 정의한 심볼 / 외부에서 가져오는 Domain 심볼
+nm -gU /Library/PrivilegedHelperTools/HelperTool | awk '{print $3}' | grep -c '^_$s6Domain'
+# 결과: 6985 — Domain 코드가 바이너리에 포함됨
+nm -u /Library/PrivilegedHelperTools/HelperTool | grep -c '^_$s6Domain'
+# 결과: 0 — 외부에서 가져오는 Domain 심볼 없음
 ```
 
 앱 안에서 Domain을 링크하는 동적 프레임워크가 없으므로, SPM이 Domain을 dynamic으로 승격할 이유도 없다. SystemExtension과 HelperTool은 별도 프로세스이자 별도 실행 파일이라, 각자 Domain을 static으로 한 벌씩 갖는 것은 문제가 되지 않는다.
+
+### 앱에서 static 링킹 확인하기
+
+앱도 같은 방법으로 확인할 수 있다. 다만 Debug 빌드에서는 **어떤 파일을 봐야 하는지**부터 알아야 한다.
+
+#### Debug 빌드의 앱 실행 파일은 껍데기다
+
+Xcode 16부터 Debug 빌드는 `ENABLE_DEBUG_DYLIB` 설정에 따라 앱을 두 파일로 나눈다.
+
+```
+PacketGO.app/Contents/MacOS/
+├── PacketGO               ← 실행만 담당하는 작은 stub
+├── PacketGO.debug.dylib   ← 실제 앱 코드 + static 링크된 모듈
+└── __preview.dylib        ← SwiftUI Preview용
+```
+
+실제 앱에서 두 파일을 비교하면 차이가 분명하다.
+
+| 파일 | 크기 | 정의된 심볼 |
+|------|------|------|
+| `PacketGO` | 약 60KB | 27개 |
+| `PacketGO.debug.dylib` | 약 66MB | Domain 모듈 심볼만 6,989개 |
+
+`PacketGO`에 정의된 27개 심볼은 모두 debug dylib을 찾아서 실행하는 코드다.
+
+```
+___debug_blank_executor_main
+_getDebugDylibHandle
+_getDebugDylibEntryPoint
+_lookupMainFuncAddressInDebugDylibMachHeader
+_abort_failed_to_open___debug_dylib
+...
+```
+
+`otool -L PacketGO`를 실행하면 `@rpath/PacketGO.debug.dylib` 한 줄만 나온다. 실행하면 stub이 이 dylib을 열고, 그 안의 진짜 `main`을 찾아 호출한다.
+
+이렇게 나누는 이유는 **SwiftUI Preview**다. Preview는 앱 코드를 다시 불러와서 뷰를 렌더링해야 한다. 앱 코드가 실행 파일에 박혀 있으면 그렇게 하기 어렵고, dylib으로 분리되어 있어야 Preview가 불러다 쓸 수 있다.
+
+Release 빌드와 Archive에는 `.debug.dylib`이 없고(`ENABLE_DEBUG_DYLIB = NO`), 앱 코드가 전부 실행 파일에 들어간다.
+
+| 빌드 | 확인할 파일 |
+|------|------|
+| Debug (Xcode에서 Run) | `Contents/MacOS/PacketGO.debug.dylib` |
+| Release, Archive | `Contents/MacOS/PacketGO` |
+
+#### 확인 방법
+
+```bash
+A=.../Build/Products/Debug/PacketGO.app
+B=$A/Contents/MacOS/PacketGO.debug.dylib   # Release라면 $A/Contents/MacOS/PacketGO
+
+# 1. 동적 로드 대상에 Domain이 없는지
+otool -L $B | grep -i domain
+# 결과: 없음 (dynamic이었다면 @rpath/Domain_…_PackageProduct.framework가 나와야 함)
+
+# 2. Domain 코드가 바이너리 안에 있는지 ← 가장 확실한 방법
+nm -gU $B | awk '{print $3}' | grep -c '^_$s6Domain'   # 결과: 6989
+nm -u  $B | grep -c '^_$s6Domain'                       # 결과: 0
+
+# 3. 앱 번들에 Domain 프레임워크가 없는지
+ls $A/Contents/Frameworks
+# 결과: libswiftCompatibilitySpan.dylib, openssl.framework, WebSocketModule.framework
+
+# 4. (실행 중일 때) Domain 이미지가 로드되지 않았는지
+vmmap [PID] | grep -i "Domain_"
+```
+
+1번과 3번은 "없다"는 것만 보여 주므로 그것만으로는 근거가 약하다. **2번에서 정의된 심볼이 있고 외부 참조가 0개**인 것까지 확인해야 static 링크라고 말할 수 있다.
+
+> `nm ... | grep 6Domain`처럼 세면 안 된다. `UILayer.popupManager(Domain.PopupManagerProtocol)`처럼 **Domain 타입을 인자로 받는 다른 모듈의 심볼**까지 잡힌다. Swift 심볼은 `_$s` + 모듈 이름 길이 + 모듈 이름으로 시작하므로, Domain 모듈 자체의 심볼은 `_$s6Domain`으로 시작하는 것만 세야 한다. 심볼 이름은 `xcrun swift-demangle --simplified`로 읽을 수 있다.
+
+---
+
+## 링킹 형태는 타겟별로 나뉘지 않는다
+
+"HelperTool은 static, 앱은 dynamic"처럼 타겟마다 Domain의 링킹 형태가 다를 수 있을까? 지금까지 관찰한 결과로는 **같은 빌드 안에서는 Domain을 쓰는 모든 타겟이 같은 형태로 링크됐다.**
+
+| 빌드 | Domain을 동적으로 만드는 조건 | Domain 형태 | 타겟별 결과 |
+|------|------|------|------|
+| macOS, UILayer Dynamic Framework (이전 글) | UILayer 동적 프레임워크가 Domain에 의존 | `Domain_…_PackageProduct.framework` | 앱뿐 아니라 HelperTool도 `@rpath/Domain…`로 동적 링크 → 크래시 |
+| macOS, UILayer Static Framework | 없음 | `Domain.o` | 앱, SystemExtension, HelperTool 모두 static (대신 이번 글의 이중 포함 발생) |
+| macOS, UILayer SPM 패키지 (이번 해결) | 없음 | `Domain.o` | 앱, SystemExtension, HelperTool 모두 static, 중복 없음 |
+| iOS, UILayer Dynamic Framework | UILayer 동적 프레임워크가 Domain에 의존 | `Domain_…_PackageProduct.framework` | 앱과 UILayer.framework 모두 동적 링크 |
+
+iOS 빌드에서는 Domain이 export하는 심볼 4,995개 중 UILayer.framework나 앱 바이너리에 다시 정의된 것이 0개였다. 동적으로 승격된 Domain이 한 벌만 존재하고, 모두가 그것을 참조한다.
+
+### 왜 나뉘지 않는가
+
+Xcode는 한 빌드에서 패키지 product 하나당 **결과물을 하나만** 만든다. `Domain.o`를 만들거나 `Domain_…_PackageProduct.framework`를 만들거나 둘 중 하나다. Domain에 의존하는 타겟은 모두 그 하나를 링크하므로, 타겟별로 형태가 달라질 수 없다.
+
+방향도 정해져 있다. "하나가 static이면 모두 static"이 아니라, **기본은 static이고, 동적으로 만들 조건이 하나라도 생기면 모두 dynamic**이 된다. 승격하는 이유는 같은 프로세스 안에 Domain이 두 벌 들어가는 것을 막기 위해서다. 앱과 UILayer 동적 프레임워크가 각자 Domain을 static으로 품으면 앱 프로세스 안에 두 벌이 생긴다.
+
+문제는 이 결정이 **빌드 전체에 적용된다**는 점이다. Xcode는 "HelperTool은 별도 프로세스이고 App Bundle 밖에 설치된다"는 사실을 고려하지 않는다. 그래서 앱 프로세스의 중복을 막으려고 내린 결정이 HelperTool까지 dynamic으로 바꿔 버렸다. 이것이 이전 글의 크래시가 생긴 원리다.
+
+iOS에서는 같은 승격이 일어났지만 문제가 되지 않았다. App Bundle 밖에서 실행되는 HelperTool이 없고, 앱 익스텐션은 `@executable_path/../../Frameworks` rpath로 App Bundle의 프레임워크를 찾을 수 있기 때문이다.
+
+> 결정 기준은 그 빌드에 포함된 타겟들로 보인다. 같은 HelperTool이라도 단독 scheme으로 빌드할 때와 앱 scheme에 포함되어 빌드될 때 결과가 달라질 수 있다. 이 부분은 직접 실험하지 않았고, Xcode의 승격 규칙은 공식 문서로 정리되어 있지 않다. 위 설명은 관찰 결과에서 나온 동작 모델이다.
+
+HelperTool처럼 반드시 static이어야 하는 타겟이 있다면, **같은 프로세스 안에서 공유 패키지를 링크하는 동적 프레임워크를 두지 않는 것**이 가장 확실하다.
 
 ---
 
