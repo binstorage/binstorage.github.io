@@ -1,132 +1,111 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 
 <head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="X-UA-Compatible" content="ie=edge">
-<link href="https://fonts.googleapis.com/css?family=Merriweather:300|Raleway:400,700" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
-<title>Your awesome title</title>
-<!-- Begin Jekyll SEO tag v2.8.0 -->
-<title>Your awesome title | Write an awesome description for your new site here. You can edit this line in _config.yml. It will appear in your document head meta (for Google search results) and in your feed.xml site description.</title>
-<meta name="generator" content="Jekyll v4.3.4" />
-<meta property="og:title" content="Your awesome title" />
-<meta name="author" content="GitHub User" />
+<title>안광빈</title>
+<!-- Begin Jekyll SEO tag v2.9.1 -->
+<title>안광빈 | macOS, iOS Developer</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="안광빈" />
+<meta name="author" content="안광빈" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Write an awesome description for your new site here. You can edit this line in _config.yml. It will appear in your document head meta (for Google search results) and in your feed.xml site description." />
-<meta property="og:description" content="Write an awesome description for your new site here. You can edit this line in _config.yml. It will appear in your document head meta (for Google search results) and in your feed.xml site description." />
+<meta name="description" content="macOS, iOS Developer" />
+<meta name="twitter:description" property="og:description" content="macOS, iOS Developer" />
 <link rel="canonical" href="http://localhost:4000/" />
 <meta property="og:url" content="http://localhost:4000/" />
-<meta property="og:site_name" content="Your awesome title" />
+<meta property="og:site_name" content="안광빈" />
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Your awesome title" />
+<meta name="twitter:title" content="안광빈" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebSite","author":{"@type":"Person","name":"GitHub User"},"description":"Write an awesome description for your new site here. You can edit this line in _config.yml. It will appear in your document head meta (for Google search results) and in your feed.xml site description.","headline":"Your awesome title","name":"Your awesome title","url":"http://localhost:4000/"}</script>
+{"@context":"https://schema.org","@type":"WebSite","author":{"@type":"Person","name":"안광빈"},"description":"macOS, iOS Developer","headline":"안광빈","name":"안광빈","url":"http://localhost:4000/"}</script>
 <!-- End Jekyll SEO tag -->
 
+<script>
+  (function() {
+    var theme = localStorage.getItem('theme');
+    if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  })();
+</script>
+</head>
 
-<script type="text/javascript" src="/assets/js/darkmode.js"></script>
+<body>
+  <button class="hamburger" id="hamburger" aria-label="메뉴 열기">
+    <span class="hamburger__line"></span>
+  </button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-</head><body>
-  <main class="container">
-    <section class="about">
-      <div class="about-header ">
-      <div class="about-title">
-      <a href="/">
-        
-        <img src="/assets/portfolio.png" alt="Adam Denisov" />
-        
-      </a>
-      <h2 id="title">
-        <a href="/">Adam Denisov</a>
-      </h2>
-      </div><p class="tagline">Developer. Designer</p></div>
-      
-      <ul class="social about-footer "><a href="https://github.com/samarsault" target="_blank">
-          <li>
-            <i class="icon-github-circled"></i>
-          </li>
-        </a><a href="https://www.linkedin.com/in/samarsault" target="_blank">
-          <li>
-            <i class="icon-linkedin-squared"></i>
-          </li>
-        </a><a href="https://twitter.com/samarsault" target="_blank">
-          <li>
-            <i class="icon-twitter-squared"></i>
-          </li>
-        </a></ul><p class="about-footer ">&copy;
-        2024</p><div class="about-footer ">
-        <p>Dark Mode
-          <i class="icon-moon"></i>
-          <label class="switch">
-            <input type="checkbox" class="dark-mode-toggle">
-            <span class="slider round" onclick="toggleDarkMode()"></span>
-          </label>
-        </p>
-      </div>
-    </section>
-    <section class="content">
-      
-<ul class="posts">
-    <li class="posts-labelgroup" id="posts-labelgroup">
-      <h1 id="posts-label">posts</h1>
-      
-      <div class="search-container">
-        <div class="search-section">
-          <i class="icon-search"></i>
-          <input type="text" name="search" id="searchbar" autocomplete="off" aria-label="search in posts">
+  <div class="site">
+    <aside class="site__sidebar" id="sidebar">
+      <div class="sidebar">
+        <div class="sidebar__profile">
+          
+          <a href="/">
+            <img class="sidebar__avatar" src="/assets/portfolio.png" alt="안광빈">
+          </a>
+          
+          <h1 class="sidebar__name">안광빈</h1>
+          
+          <p class="sidebar__tagline">macOS, iOS Developer</p>
+          
         </div>
-        <div class="search-results" id="search-results" data-placeholder="No Results" style="display: none;"></div>
-      </div>
-      
-    </li><li><a class="post-link" href="/javascript/nodejs/2019/03/24/welcome-to-jekyll.html">
-          <h2 class="post-title">Integrating razorpay into your webapp</h2>
-        </a>
-        <div class="post-meta">
-          <div class="post-date">
-            <i class="icon-calendar"></i>
-            Mar 24, 2019
-          </div><ul class="post-categories"><li>Javascript</li><li>NodeJS</li></ul></div>
-        <div class="post"><p>Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse</p>
-</div>
-      </li></ul>
 
-  <!-- <p class="feed-subscribe"><svg class="svg-icon orange">
-		<use xlink:href="/assets/minima-social-icons.svg#rss"></use>
-	</svg><a href="/feed.xml">Subscribe</a></p> -->
-    </section>
-    <footer class="">
-      <ul class="social about-footer "><a href="https://github.com/samarsault" target="_blank">
-          <li>
-            <i class="icon-github-circled"></i>
-          </li>
-        </a><a href="https://www.linkedin.com/in/samarsault" target="_blank">
-          <li>
-            <i class="icon-linkedin-squared"></i>
-          </li>
-        </a><a href="https://twitter.com/samarsault" target="_blank">
-          <li>
-            <i class="icon-twitter-squared"></i>
-          </li>
-        </a></ul><p class="about-footer ">&copy;
-        2024</p><div class="about-footer ">
-        <p>Dark Mode
-          <i class="icon-moon"></i>
-          <label class="switch">
-            <input type="checkbox" class="dark-mode-toggle">
-            <span class="slider round" onclick="toggleDarkMode()"></span>
-          </label>
-        </p>
+        
+        <nav class="sidebar__nav">
+          <ul class="sidebar__nav-list">
+            
+            
+            <li class="sidebar__nav-item">
+              <a href="/portfolio" class="sidebar__nav-link">
+                포트폴리오
+              </a>
+            </li>
+            
+            
+            <li class="sidebar__nav-item">
+              <a href="/blog" class="sidebar__nav-link">
+                기술 블로그
+              </a>
+            </li>
+            
+          </ul>
+        </nav>
+        
+
+        <div class="sidebar__footer">
+          <p class="sidebar__copyright">&copy; 2026 안광빈</p>
+          <div class="theme-toggle">
+            <span class="theme-toggle__label">라이트</span>
+            <input type="checkbox" id="theme-checkbox" class="theme-toggle__checkbox">
+            <label for="theme-checkbox" class="theme-toggle__switch"></label>
+            <span class="theme-toggle__label">다크</span>
+          </div>
+        </div>
       </div>
-    </footer>
-  </main>
-  
-  <script type="text/javascript" src="/assets/js/darkmode.js"></script>
-  
-  <script src="/assets/js/simple-jekyll-search.min.js"></script>
-  <script src="/assets/js/search.js"></script>
-  
+    </aside>
+
+    <main class="site__content">
+      <div class="content-wrapper">
+        <div class="page-content">
+  <script>window.location.href = "/portfolio/";</script>
+
+<meta http-equiv="refresh" content="0; url=/portfolio/" />
+
+
+</div>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="/assets/js/main.js"></script>
 </body>
 
 </html>

@@ -4,7 +4,7 @@ title: 포트폴리오
 permalink: /portfolio/
 ---
 
-<div class="portfolio-page">
+<div class="portfolio-page" markdown="1">
 
 ## 소개
 {: .section-title}
@@ -45,46 +45,57 @@ permalink: /portfolio/
 <div class="skill-summary">
 
 <div class="skill-category">
-  <h4>Frontend</h4>
+  <h4>Language</h4>
   <div class="skill-tags">
-    <span class="skill-tag">[기술1]</span>
-    <span class="skill-tag">[기술2]</span>
+    <span class="skill-tag">Swift</span>
+    <span class="skill-tag">C++</span>
+    <span class="skill-tag">Objective-C++</span>
   </div>
 </div>
 
 <div class="skill-category">
-  <h4>Backend</h4>
+  <h4>Framework / Library</h4>
   <div class="skill-tags">
-    <span class="skill-tag">[기술1]</span>
-    <span class="skill-tag">[기술2]</span>
+    <span class="skill-tag">SwiftUI</span>
+    <span class="skill-tag">UIKit</span>
+    <span class="skill-tag">AppKit</span>
+    <span class="skill-tag">Combine</span>
+    <span class="skill-tag">RxSwift</span>
+    <span class="skill-tag">TCA</span>
+    <span class="skill-tag">ReactorKit</span>
   </div>
 </div>
 
 <div class="skill-category">
-  <h4>DevOps / Infra</h4>
+  <h4>Apple Platform</h4>
   <div class="skill-tags">
-    <span class="skill-tag">[기술1]</span>
-    <span class="skill-tag">[기술2]</span>
+    <span class="skill-tag">Network Extension</span>
+    <span class="skill-tag">System Extension</span>
+    <span class="skill-tag">App Extension</span>
+    <span class="skill-tag">XPC</span>
+    <span class="skill-tag">Privileged Daemon</span>
+    <span class="skill-tag">Developer ID</span>
+    <span class="skill-tag">Notarization</span>
+    <span class="skill-tag">Installer Package (pkg)</span>
+    <span class="skill-tag">App Store Connect</span>
+    <span class="skill-tag">TestFlight</span>
+    <span class="skill-tag">Apple Developer Enterprise Program</span>
   </div>
 </div>
 
 <div class="skill-category">
-  <h4>기타</h4>
+  <h4>Architecture / Tools</h4>
   <div class="skill-tags">
-    <span class="skill-tag">[기술1]</span>
-    <span class="skill-tag">[기술2]</span>
+    <span class="skill-tag">Clean Architecture</span>
+    <span class="skill-tag">Swift Package Manager</span>
+    <span class="skill-tag">Tuist</span>
+    <span class="skill-tag">RIBs</span>
+    <span class="skill-tag">XCTest</span>
+    <span class="skill-tag">Instruments</span>
+    <span class="skill-tag">Git</span>
   </div>
 </div>
 
 </div>
-
----
-
-## 연락처
-{: .section-title}
-
-- **이메일**: [email@example.com]
-- **GitHub**: [https://github.com/username]
-- **블로그**: [블로그 URL]
 
 </div>
