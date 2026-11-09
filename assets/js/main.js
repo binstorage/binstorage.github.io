@@ -82,4 +82,59 @@
       });
     });
   }
+
+  // Code block header: language label + copy button
+  // plaintext(언어 미지정)는 다이어그램이므로 헤더를 달지 않음
+  var CODE_LABELS = {
+    bash: { label: 'Terminal', copy: true, modifier: 'terminal' },
+    shell: { label: 'Terminal', copy: true, modifier: 'terminal' },
+    sh: { label: 'Terminal', copy: true, modifier: 'terminal' },
+    zsh: { label: 'Terminal', copy: true, modifier: 'terminal' },
+    console: { label: 'Terminal', copy: true, modifier: 'terminal' },
+    text: { label: '출력 예시', copy: false, modifier: 'output' },
+    swift: { label: 'Swift', copy: true },
+    objc: { label: 'Objective-C', copy: true },
+    c: { label: 'C', copy: true },
+    xml: { label: 'XML / plist', copy: true },
+    json: { label: 'JSON', copy: true },
+    yaml: { label: 'YAML', copy: true }
+  };
+
+  var codeBlocks = document.querySelectorAll('.post-article__content div.highlighter-rouge');
+  codeBlocks.forEach(function (block) {
+    var match = block.className.match(/language-(\S+)/);
+    var info = match && CODE_LABELS[match[1]];
+    if (!info) return;
+
+    if (info.modifier) block.classList.add('code-block--' + info.modifier);
+
+    var header = document.createElement('div');
+    header.className = 'code-header';
+    var label = document.createElement('span');
+    label.className = 'code-header__label';
+    label.innerHTML = '<span class="code-header__dot"></span>';
+    label.appendChild(document.createTextNode(info.label));
+    header.appendChild(label);
+
+    if (info.copy && navigator.clipboard) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'code-copy';
+      button.textContent = '복사';
+      button.addEventListener('click', function () {
+        var code = block.querySelector('pre code');
+        navigator.clipboard.writeText(code.innerText.replace(/\n$/, '')).then(function () {
+          button.textContent = '복사됨';
+          button.classList.add('code-copy--done');
+          setTimeout(function () {
+            button.textContent = '복사';
+            button.classList.remove('code-copy--done');
+          }, 1500);
+        });
+      });
+      header.appendChild(button);
+    }
+
+    block.insertBefore(header, block.firstChild);
+  });
 })();

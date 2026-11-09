@@ -3,7 +3,7 @@ layout: post
 title: "XPC 연결의 내부 동작 — Mach 포트부터 메시지 전송까지"
 date: 2026-09-08
 categories: [macOS]
-description: "프로세스 A가 connect하고 프로세스 B가 listen할 때, 커널 수준에서 Mach 포트가 어떻게 생성되고 메시지가 어떻게 전달되는지 XPC의 전체 흐름을 정리합니다."
+description: "프로세스 A가 connect하고 프로세스 B가 listen할 때, 커널 수준에서 Mach 포트가 어떻게 생성되고 메시지가 어떻게 전달되는지 XPC의 전체 흐름을 정리합니다. Endpoint Security 익스텐션 사례와 터미널 실습까지 다룹니다."
 ---
 
 ## XPC란 무엇인가
@@ -64,7 +64,7 @@ launchd는 macOS의 PID 1 프로세스이면서 동시에 **Mach 포트 이름 �
 │   서비스 이름 등록부 (bootstrap namespace)             │
 │   ┌────────────────────────────────────────────┐     │
 │   │ "com.example.myservice"  → Mach port 0x307 │     │
-│   │ "com.pribit.app.helper"  → Mach port 0x50b │     │
+│   │ "com.example.helper"     → Mach port 0x50b │     │
 │   │ ...                                        │     │
 │   └────────────────────────────────────────────┘     │
 └──────────────────────────────────────────────────────┘
@@ -77,7 +77,7 @@ launchd는 macOS의 PID 1 프로세스이면서 동시에 **Mach 포트 이름 �
 ```xml
 <key>MachServices</key>
 <dict>
-    <key>com.pribit.application.packetgo.switch.sase.HelperTool</key>
+    <key>com.example.helper</key>
     <true/>
 </dict>
 ```
@@ -220,49 +220,28 @@ func listener(_ listener: NSXPCListener,
 ---
 
 ## 메시지 전송 원리
-호출 시점부터 단계별로 보면:
-```
-1. Proxy 객체 획득
 
-swift
-connection.remoteObjectProxyWithErrorHandler { error in ... }
+연결이 수립된 후 실제 메시지가 어떻게 전달되는지 설명합니다. 먼저 NSXPCConnection의 **프록시 메서드 호출 한 번**이 어떤 파이프라인을 거치는지 보고, 이어서 커널 수준에서 Mach 메시지가 어떻게 이동하는지 살펴봅니다.
 
-이게 리턴하는 건 실제 원격 객체가 아니라 _NSXPCDistantObject라는 프록시예요. 이 객체는 NSXPCInterface에 지정된 프로토콜을 준수하는 것처럼 보이지만, 그 프로토콜의 메서드 구현을 실제로 갖고 있지 않습니다.
+### 프록시 호출이 XPC 메시지가 되기까지
 
-2. 메시지 전송으로 안 가고 forwardInvocation:으로 감
-
-프록시에서 프로토콜 메서드를 호출하면, _NSXPCDistantObject는 해당 셀렉터에 대한 -methodSignatureForSelector:는 응답하지만 실제 IMP가 없어요. 그래서 Objective-C 런타임의 메시지 디스패치가 실패하고 **forwardInvocation:**으로 떨어집니다. 여기서 호출 정보(셀렉터, 인자들)가 NSInvocation 객체로 캡처돼요.
-
-3. NSXPCInterface가 인자 타입을 사전에 분석
-
-NSXPCInterface는 연결 셋업 시점에 프로토콜을 리플렉션해서 각 메서드의 인자 타입을 파악해 둡니다 (-setClasses:forSelector:argumentIndex:ofReply: 등). 이게 왜 중요하냐면:
-
-어떤 인자가 리플라이 블록인지
-어떤 인자가 NSSecureCoding을 준수해야 하는 객체인지
-어떤 인자가 또 다른 XPC 프록시(중첩 프록시)인지
-
-를 여기서 미리 알아야 직렬화 방식을 결정할 수 있거든요.
-
-4. Invocation → XPC 메시지로 인코딩
-
-NSInvocation이 xpc_object_t (사실상 dictionary)로 변환돼요. 셀렉터 이름, 각 인자의 인코딩된 값이 담기고, 인자가 NSSecureCoding 객체면 그 안에서 다시 NSKeyedArchiver 유사 방식으로 직렬화됩니다.
-
-5. mach_msg()로 실제 전송
-
-이 xpc dictionary가 저번에 얘기한 Mach port를 통해 전달됩니다. 리플라이 블록이 있으면, 그 블록 자체가 별도의 mach port(reply port)로 매핑돼서 함께 전송돼요 - 나중에 응답이 이 포트로 돌아올 수 있게.
-
-6. 수신측: 역직렬화 → 실제 객체에 invoke
-
-리스너 쪽에서 메시지를 받으면 NSInvocation으로 재구성하고, exportedObject(실제 구현체)에 대고 -invokeWithTarget:을 호출합니다. 이 시점에 비로소 실제 메서드 바디가 실행돼요.
-
-7. 리턴/리플라이 경로
-
-리플라이 블록을 실행측에서 호출하면, 그 호출 자체도 대칭적으로 캡처→직렬화→reply port로 전송되고, 원래 호출한 쪽에서 그 블록이 실행됩니다.
-
-핵심 포인트: 클라이언트 입장에서 동기 메서드처럼 보이지만 실제로는 forwardInvocation: 트랩 → NSInvocation 캡처 → xpc 메시지 인코딩 → mach_msg 전송 → 원격 invoke → (필요시) 대칭적 리플라이 전송의 파이프라인이 매 호출마다 도는 거예요. 그래서 XPC 메서드 호출이 일반 Objective-C 메시지 전송보다 오버헤드가 훨씬 크고, 인자로 넘기는 객체가 NSSecureCoding을 안 지키면 런타임에 크래시 나는 이유도 여기 있습니다 (5번 단계에서 인코딩 실패).
+```swift
+let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+    print("XPC 에러:", error)
+} as? MyProtocol
 ```
 
-연결이 수립된 후 실제 메시지가 어떻게 전달되는지 설명합니다.
+| 단계 | 일어나는 일 |
+|------|------------|
+| **1. 프록시 획득** | `remoteObjectProxy`가 돌려주는 것은 실제 원격 객체가 아니라 `_NSXPCDistantObject`라는 프록시입니다. 프로토콜을 준수하는 것처럼 보이지만 메서드 구현(IMP)은 없습니다. |
+| **2. `forwardInvocation:`으로 떨어짐** | 프록시는 `methodSignatureForSelector:`에는 응답하지만 IMP가 없으므로, Objective-C 런타임 디스패치가 실패하고 `forwardInvocation:`이 호출됩니다. 이때 셀렉터와 인자가 `NSInvocation`으로 캡처됩니다. |
+| **3. 인자 타입 분석** | `NSXPCInterface`는 연결 셋업 시점에 프로토콜을 분석해 둡니다(`setClasses(_:for:argumentIndex:ofReply:)` 등). 어떤 인자가 reply 블록인지, `NSSecureCoding` 객체인지, 또 다른 XPC 프록시인지 미리 알아야 직렬화 방식을 정할 수 있습니다. |
+| **4. 인코딩** | `NSInvocation`이 `xpc_object_t`(사실상 dictionary)로 변환됩니다. 셀렉터 이름과 인코딩된 인자가 담기며, `NSSecureCoding` 객체는 keyed archive 방식으로 직렬화됩니다. |
+| **5. `mach_msg()` 전송** | dictionary가 Mach 포트로 전송됩니다. reply 블록이 있으면 별도의 **reply 포트**가 만들어져 함께 전달됩니다. |
+| **6. 수신측 invoke** | 리스너 쪽에서 메시지를 `NSInvocation`으로 재구성하고, `exportedObject`에 대해 `invoke(withTarget:)`을 호출합니다. 이때 비로소 실제 메서드 본문이 실행됩니다. |
+| **7. reply 경로** | 서버가 reply 블록을 호출하면 그 호출도 대칭적으로 캡처 → 직렬화 → reply 포트로 전송되고, 클라이언트 쪽에서 원래 블록이 실행됩니다. |
+
+> **핵심**: 클라이언트 코드에서는 일반 메서드 호출처럼 보이지만, 매 호출마다 `forwardInvocation:` 트랩 → `NSInvocation` 캡처 → XPC 메시지 인코딩 → `mach_msg` 전송 → 원격 invoke → (필요 시) reply 전송 파이프라인이 실행됩니다. 그래서 XPC 호출은 일반 Objective-C 메시지 전송보다 오버헤드가 훨씬 크고, 인자로 넘긴 객체가 `NSSecureCoding`을 지키지 않으면 4단계 인코딩에서 런타임 에러가 발생합니다.
 
 ### 프로세스 A → 프로세스 B 메시지 전송
 
@@ -569,65 +548,210 @@ plist 파일을 /Library/LaunchDaemons/에 배치
 | **MachServiceName 선언 위치** | LaunchDaemon plist의 `MachServices` 키 | 익스텐션 Info.plist의 `NEMachServiceName` 키 |
 | **등록 주체** | launchd가 plist를 직접 로드 | sysextd가 launchd 설정을 생성하여 등록 |
 | **최종 네임스페이스** | `system/` 도메인 | `system/` 도메인 (동일) |
+| **launchd label** | `<BundleID>` (plist의 `Label`) | `NetworkExtension.<BundleID>.<Version>` |
 | **바이너리 위치** | `/Library/PrivilegedHelperTools/` 등 | `/Library/SystemExtensions/` |
 | **Team ID 접두사** | 불필요 | `$(TeamIdentifierPrefix)` 필수 |
 | **라이프사이클 관리** | launchd가 직접 on-demand 관리 | sysextd + NetworkExtension 프레임워크가 활성화/비활성화 관리 |
-| **확인 명령어** | `sudo launchctl print system/<label>` | 동일 + `systemextensionsctl list` |
+| **확인 명령어** | `sudo launchctl print system/<BundleID>` | `sudo launchctl print system/NetworkExtension.<BundleID>.<Version>` + `systemextensionsctl list` |
+
+Endpoint Security 익스텐션도 같은 sysextd 경로를 탑니다. 차이는 Info.plist에서 `NEMachServiceName` 대신 **`NSEndpointSecurityMachServiceName`** 키를 쓴다는 점이며, 실제 프로젝트 사례는 아래 **Endpoint Security 익스텐션** 절에서 다룹니다.
 
 > **샌드박스와 네임스페이스의 관계**: System Extension의 샌드박스 여부는 등록되는 네임스페이스에 영향을 주지 않습니다. 샌드박스는 프로세스가 **런타임에 할 수 있는 행위**(파일 접근, 네트워크 등)를 제한하는 것이지, launchd 도메인 등록을 변경하는 것이 아닙니다.
 
 ---
 
+## Endpoint Security 익스텐션 — PRIBITEDR 사례
+
+Network Extension 외에 **Endpoint Security(ES) 시스템 익스텐션**도 같은 방식으로 XPC 서비스를 노출합니다. 사내 EDR 프로토타입인 `PRIBITEDR`은 ES 익스텐션이고, 컨테이너 앱이 XPC로 파일 정책(삭제·생성·읽기·수정 거부 경로)을 내려보내는 구조입니다. 등록 경로는 Network Extension과 똑같이 sysextd를 거치며, **선언하는 Info.plist 키와 launchd에 보이는 label 형식만 다릅니다.**
+
+### 전체 구성
+
+```
+컨테이너 앱                                    ES 익스텐션 (PRIBITEDR)
+ │                                              │
+ │ 1. OSSystemExtensionRequest (활성화 요청)    │
+ │ ────► sysextd ────► launchd system/ 등록 ──► │ 2. es_new_client()
+ │                                              │    NSXPCListener(machServiceName:)
+ │ 3. NSXPCConnection(.privileged)              │
+ │ ════════════ setPolicy(...) ═══════════════► │ 4. 정책 갱신 + es_subscribe()
+ │ ◄═══════════ reply(true) ═══════════════════ │
+ │                                              │
+ │                     커널 ── AUTH 이벤트 ───► │ 5. 정책 판정 → ALLOW / DENY
+```
+
+1. 앱이 `OSSystemExtensionRequest.activationRequest`로 익스텐션 활성화를 요청하면, sysextd가 바이너리를 `/Library/SystemExtensions/`에 복사하고 launchd `system/` 도메인에 등록합니다.
+2. 익스텐션 프로세스는 `es_new_client()`로 ES 클라이언트를 만들고, `NSXPCListener(machServiceName:)`으로 XPC 리스너를 엽니다.
+3. 앱은 `NSXPCConnection(machServiceName:options: .privileged)`로 연결합니다.
+4. 앱이 `setPolicy`를 호출하면 익스텐션이 정책을 갱신하고 `es_subscribe()`로 AUTH 이벤트 구독을 시작합니다.
+5. 이후 커널이 파일 이벤트마다 익스텐션에 판정을 요청하고, 익스텐션은 정책에 따라 ALLOW / DENY로 응답합니다.
+
+### 1. 서비스 이름 선언 — 익스텐션 Info.plist
+
+```xml
+<!-- PRIBITEDR.systemextension/Contents/Info.plist -->
+<key>NSEndpointSecurityMachServiceName</key>
+<string><BundleID></string>
+```
+
+Network Extension의 `NEMachServiceName`에 해당하는 키입니다. PRIBITEDR에서는 익스텐션 번들 ID를 그대로 서비스 이름으로 사용했습니다. 필요한 entitlement는 다음과 같습니다.
+
+| 대상 | Entitlement |
+|------|------|
+| 컨테이너 앱 | `com.apple.developer.system-extension.install` |
+| ES 익스텐션 | `com.apple.developer.endpoint-security.client` |
+
+### 2. launchd에는 어떤 label로 보이나
+
+`sudo launchctl print system/`으로 보면 세 종류의 서비스가 **서로 다른 label 형식**으로 등록되어 있습니다.
+
+| 종류 | `launchctl print system/`의 label | 클라이언트가 연결할 때 쓰는 이름 |
+|------|------|------|
+| LaunchDaemon (Privileged Helper) | `<BundleID>` (plist의 `Label`) | plist `MachServices`의 키 |
+| Network Extension | `NetworkExtension.<BundleID>.<Version>` | `NEMachServiceName` |
+| Endpoint Security | `<TeamID>.<BundleID>` | `NSEndpointSecurityMachServiceName` |
+
+LaunchDaemon은 개발자가 작성한 plist의 `Label`이 그대로 보이지만, 시스템 익스텐션은 **sysextd가 launchd 설정을 생성**하기 때문에 label에 접두사(`NetworkExtension.`, `<TeamID>.`)나 버전이 붙습니다. 그래서 시스템 익스텐션은 `sudo launchctl print system/<BundleID>`로 바로 조회되지 않고, 먼저 label을 찾아야 합니다. (아래 **실습 6** 참고)
+
+> label은 launchd가 job을 구분하는 이름이고, 클라이언트가 `NSXPCConnection(machServiceName:)`에 넘기는 것은 Info.plist에 선언한 **Mach 서비스 이름**입니다. 둘은 다를 수 있으므로, 연결 문자열은 label이 아니라 Info.plist 값과 맞춰야 합니다.
+
+### 3. 공유 프로토콜 — 앱과 익스텐션이 같이 링크하는 Domain 패키지
+
+```swift
+@objc public protocol EndpointSecurityIPCProtocol {
+    func setPolicy(enabled: Bool,
+                   denyDeletePaths: [String], denyCreatePaths: [String],
+                   denyReadPaths: [String], denyWritePaths: [String],
+                   withReply reply: @escaping (Bool) -> Void)
+    func getPolicy(withReply reply: @escaping (Bool, [String], [String], [String], [String]) -> Void)
+}
+```
+
+`[String]`과 `Bool`만 주고받으므로 별도의 `setClasses` 설정 없이 기본 인코딩으로 충분합니다. `withReply` 블록은 앞의 **Reply 패턴** 절에서 본 send-once reply 포트로 변환됩니다.
+
+### 4. 서버 — 익스텐션의 `main.swift` + `XPCServer.swift`
+
+```swift
+// main.swift (요약)
+let res = es_new_client(&client) { client, message in
+    // AUTH 이벤트마다 FilePolicyManager로 판정 후 응답
+}
+let xpcServer = XPCServer(machServiceName: bundleID,
+                          esClient: client,
+                          filePolicyManager: filePolicyManager)
+xpcServer.start()
+dispatchMain()
+```
+
+```swift
+// XPCServer.swift
+init(machServiceName: String, esClient: OpaquePointer, filePolicyManager: FilePolicyManager) {
+    self.listener = NSXPCListener(machServiceName: machServiceName)
+    ...
+}
+
+func start() {
+    listener.resume()   // launchd에 check-in → 서비스 포트의 receive right 획득
+}
+
+func listener(_ listener: NSXPCListener,
+              shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
+    connection.exportedInterface = NSXPCInterface(with: EndpointSecurityIPCProtocol.self)
+    connection.exportedObject = XPCHandler(esClient: esClient, filePolicyManager: filePolicyManager)
+    connection.resume()
+    return true
+}
+```
+
+`XPCHandler.setPolicy`는 정책을 갱신한 뒤 `es_clear_cache()`로 ES의 판정 캐시를 비우고, `enabled` 값에 따라 `es_subscribe()` / `es_unsubscribe_all()`을 호출합니다. 즉 **익스텐션은 활성화되자마자 XPC 리스너를 열어 두지만, 실제 이벤트 구독은 앱이 XPC로 정책을 보내는 순간 시작**됩니다.
+
+### 5. 클라이언트 — Domain 패키지의 `EndpointSecurityIPCConnection`
+
+```swift
+let conn = NSXPCConnection(machServiceName: machServiceName, options: .privileged)
+conn.remoteObjectInterface = NSXPCInterface(with: EndpointSecurityIPCProtocol.self)
+conn.invalidationHandler = { [weak self] in
+    self?.connection = nil   // 다음 호출 때 새로 연결
+}
+conn.resume()
+```
+
+시스템 익스텐션의 서비스는 사용자 세션이 아닌 `system/` 도메인에 등록됩니다. `.privileged`는 이렇게 권한 있는(privileged) 부트스트랩 영역의 서비스에 연결할 때 지정하는 옵션입니다.
+
+### 실전 주의점 — reply와 에러 핸들러는 둘 중 하나만 호출된다
+
+`remoteObjectProxyWithErrorHandler`로 얻은 프록시에서 reply 블록이 있는 메서드를 호출하면, **reply 블록과 에러 핸들러 중 정확히 하나만** 호출됩니다. 익스텐션이 아직 활성화되지 않았거나 서비스 조회에 실패하면 reply는 오지 않고 에러 핸들러만 불립니다.
+
+PRIBITEDR의 `EndpointSecurityManager`는 reply를 `withCheckedThrowingContinuation`으로 감싸 `async`로 노출하는데, 현재 에러 핸들러는 로그만 남깁니다.
+
+```swift
+// 현재 구조: 에러 시 completion이 호출되지 않음 → continuation이 영원히 resume되지 않음
+return connection?.remoteObjectProxyWithErrorHandler { error in
+    NSLog("[XPCClient] XPC 에러: %{public}@", error.localizedDescription)
+} as? EndpointSecurityIPCProtocol
+```
+
+익스텐션 활성화 전에 정책을 보내면 `await xpcClient.setPolicy(...)`가 끝나지 않습니다. 호출마다 에러 핸들러에서도 completion을 보장하도록 바꾸면 해결됩니다.
+
+```swift
+private func proxy(onError: @escaping (Error) -> Void) -> EndpointSecurityIPCProtocol? {
+    // connection 생성 로직은 동일
+    return connection?.remoteObjectProxyWithErrorHandler(onError) as? EndpointSecurityIPCProtocol
+}
+
+func setPolicy(..., completion: @escaping (Bool) -> Void) {
+    guard let proxy = proxy(onError: { _ in completion(false) }) else {
+        completion(false)
+        return
+    }
+    proxy.setPolicy(..., withReply: completion)
+}
+```
+
+---
+
 ## 터미널에서 검증하기
 
-지금까지 설명한 네임스페이스 등록, Mach 포트 할당, 서비스 매핑 등이 실제로 어떻게 존재하는지 터미널 명령어로 직접 확인할 수 있습니다. LaunchDaemon과 System Extension(Network Extension) 모두 동일한 명령어로 검증 가능합니다.
+지금까지 설명한 네임스페이스 등록, Mach 포트 할당, 서비스 이름 ↔ 포트 매핑이 실제로 존재하는지 터미널에서 직접 확인해 봅니다. LaunchDaemon, Network Extension, Endpoint Security 익스텐션 모두 같은 명령어로 검증할 수 있습니다.
 
-### Bootstrap 네임스페이스 구조
+> **읽는 법**: 초록색 선이 있는 **Terminal** 블록은 그대로 복사해 실행하는 명령어이고, 점선 테두리의 **출력 예시** 블록은 실행 결과 예시입니다. `<BundleID>`, `<pid>`처럼 꺾쇠로 감싼 부분은 자신의 값으로 바꿔 입력하세요.
 
-launchd는 여러 계층의 도메인(네임스페이스)을 관리합니다. `launchctl print` 명령으로 각 도메인의 상태를 조회할 수 있습니다.
+### 실습 1. Bootstrap 네임스페이스(도메인) 둘러보기
 
-```
-도메인 계층 구조:
+launchd는 여러 계층의 도메인을 관리합니다.
 
-system/                ← 시스템 데몬 (LaunchDaemon)
-gui/<uid>/             ← GUI 세션의 사용자 에이전트 (LaunchAgent)
-user/<uid>/            ← 사용자 도메인
-login/<asid>/          ← 로그인 세션 도메인
-pid/<pid>/             ← 프로세스별 도메인
-```
+| 도메인 | 담기는 것 |
+|------|------|
+| `system/` | 시스템 데몬 (LaunchDaemon, 시스템 익스텐션) |
+| `gui/<uid>/` | GUI 세션의 사용자 에이전트 (LaunchAgent) |
+| `user/<uid>/` | 사용자 도메인 |
+| `login/<asid>/` | 로그인 세션 도메인 |
+| `pid/<pid>/` | 프로세스별 도메인 |
 
 ```bash
-# 시스템 도메인 전체 조회 (LaunchDaemon 영역)
+# 시스템 도메인 (LaunchDaemon / 시스템 익스텐션 영역)
 sudo launchctl print system/
 
-# 현재 사용자의 GUI 도메인 조회 (LaunchAgent 영역)
+# 현재 사용자의 GUI 도메인 (LaunchAgent 영역)
 launchctl print gui/$(id -u)/
-
-# 사용자 도메인 조회
-launchctl print user/$(id -u)/
 ```
 
-### 등록된 서비스(MachServiceName) 확인
+### 실습 2. 등록된 서비스(MachServiceName) 확인하기
 
-특정 MachServiceName이 launchd에 등록되어 있는지 확인하는 가장 직접적인 방법입니다.
+특정 서비스 이름이 launchd에 등록되어 있고, 어떤 포트에 매핑되어 있는지 확인하는 가장 직접적인 방법입니다.
 
 ```bash
-# 시스템 도메인에서 특정 서비스 상세 정보 조회
-sudo launchctl print system/com.pribit.application.packetgo.switch.sase.HelperTool
+sudo launchctl print system/<BundleID>
 ```
 
-출력 예시:
-
-```
-com.pribit.application.packetgo.switch.sase.HelperTool = {
+```text
+<BundleID> = {
     active count = 1
-    path = /Library/PrivilegedHelperTools/com.pribit.application.packetgo.switch.sase.HelperTool
+    path = /Library/PrivilegedHelperTools/<BundleID>
     state = running
-
-    program = /Library/PrivilegedHelperTools/com.pribit.application.packetgo.switch.sase.HelperTool
+    program = /Library/PrivilegedHelperTools/<BundleID>
     ...
     endpoints = {
-        "com.pribit.application.packetgo.switch.sase.HelperTool" = {
+        "<BundleID>" = {
             port = 0x7b30b
             active = 1
             managed = 1
@@ -639,48 +763,40 @@ com.pribit.application.packetgo.switch.sase.HelperTool = {
 }
 ```
 
-여기서 `endpoints` 블록이 핵심입니다. plist의 `MachServices`에 선언한 이름이 실제로 Mach 포트와 매핑되어 있고, 해당 포트 번호(`0x7b30b`)까지 확인할 수 있습니다.
+**확인 포인트**: `endpoints` 블록에 plist의 `MachServices`에 선언한 이름이 있고, 포트(`0x7b30b`)가 매핑되어 있으면 등록은 정상입니다. 시스템 익스텐션은 label 형식이 다르므로 위 **launchd에는 어떤 label로 보이나** 표를 참고하세요. 전체 출력이 길다면 `endpoints` 블록만 걸러 봅니다.
 
 ```bash
-# 시스템 도메인 전체에서 endpoints(Mach 서비스)만 필터링
-sudo launchctl print system/ | grep -A 5 "endpoints"
+# endpoints 블록만 보기
+sudo launchctl print system/<BundleID> | grep -A 6 "endpoints"
 
-# 특정 서비스 이름이 어디에 등록되어 있는지 검색
-sudo launchctl dumpstate | grep "com.pribit.application.packetgo"
+# 서비스 이름이 어디에 등록되어 있는지 전체 상태에서 검색
+sudo launchctl dumpstate | grep "<BundleID>"
 ```
 
-### 로드된 Job 목록 확인
-
-`launchctl list`는 현재 도메인에 로드된 모든 Job을 보여줍니다.
+### 실습 3. 로드된 Job과 on-demand 상태 확인하기
 
 ```bash
-# 현재 사용자 도메인의 로드된 Job 목록
-launchctl list
-
-# 특정 서비스 필터링
-launchctl list | grep com.pribit
-
-# 출력 형식: PID, 종료 코드, 라벨
-#   PID     Status  Label
-#   1234    0       com.pribit.application.packetgo.switch.sase.HelperTool
-#   -       0       com.apple.some.unloaded.service
+sudo launchctl list | grep <BundleID>
 ```
 
-PID가 `-`인 항목은 로드는 되어 있지만 현재 프로세스가 실행되지 않은 상태(on-demand 대기)입니다. 앞서 설명한 launchd가 포트를 **대리 보유**하고 있는 상태에 해당합니다.
+```text
+PID     Status  Label
+1234    0       <BundleID>
+-       0       com.example.ondemand.service
+```
 
-### 프로세스의 Mach 포트 직접 확인
+**확인 포인트**: PID가 `-`인 항목은 로드는 되었지만 프로세스가 실행 중이지 않은 상태(on-demand 대기)입니다. 앞에서 본 것처럼 launchd가 서비스 포트를 **대리 보유**하고 있는 상태입니다.
 
-`lsmp`(list mach ports) 명령으로 특정 프로세스가 보유한 Mach 포트와 권한을 직접 확인할 수 있습니다.
+### 실습 4. 프로세스가 가진 Mach 포트 권한 보기
+
+`lsmp`(list mach ports)로 특정 프로세스가 보유한 포트와 권한을 확인합니다.
 
 ```bash
-# 특정 PID의 Mach 포트 목록
 sudo lsmp -p <pid>
 ```
 
-출력 예시:
-
-```
-Process (1234) : com.pribit.application.packetgo.switch.sase.HelperTool
+```text
+Process (1234) : <BundleID>
   name      ipc-object    rights     flags   boost  reqs  recv  send ...
 ---------   ----------  ----------   -----   -----  ----  ----  ----
 0x00000307  0x7b30b123  recv         ------      0     -     1     0
@@ -691,108 +807,81 @@ Process (1234) : com.pribit.application.packetgo.switch.sase.HelperTool
 
 | 컬럼 | 의미 |
 |------|------|
-| **name** | 태스크 로컬 포트 이름 (ipc_space 내의 인덱스) |
+| **name** | 태스크 로컬 포트 이름 (`ipc_space` 내의 인덱스) |
 | **ipc-object** | 커널 내부의 실제 포트 객체 식별자 |
 | **rights** | 이 프로세스가 해당 포트에 대해 가진 권한 (`recv`, `send`, `send-once`) |
 
-`recv` 권한을 가진 포트가 이 프로세스가 수신 대기하는 서비스 포트이고, `send` 권한을 가진 포트가 다른 프로세스에 메시지를 보낼 수 있는 포트입니다. 앞서 설명한 포트 권한 모델이 실제로 이렇게 존재함을 직접 확인할 수 있습니다.
+**확인 포인트**: `recv` 권한 포트가 이 프로세스가 수신 대기하는 서비스 포트이고, `send` 권한 포트가 다른 프로세스에 메시지를 보낼 수 있는 포트입니다.
 
-### plist에 선언된 MachServices 확인
-
-서비스가 어떤 MachServiceName으로 등록될 예정인지는 LaunchDaemon/LaunchAgent plist 파일에서 직접 확인할 수 있습니다.
+### 실습 5. plist에 선언된 서비스 이름 확인하기
 
 ```bash
-# LaunchDaemon plist 위치
-ls /Library/LaunchDaemons/
-
-# 특정 plist에서 MachServices 키 확인
-plutil -p /Library/LaunchDaemons/com.pribit.application.packetgo.switch.sase.HelperTool.plist
+plutil -p /Library/LaunchDaemons/<BundleID>.plist
 ```
 
-출력 예시:
-
-```
+```text
 {
-  "Label" => "com.pribit.application.packetgo.switch.sase.HelperTool"
+  "Label" => "<BundleID>"
   "MachServices" => {
-    "com.pribit.application.packetgo.switch.sase.HelperTool" => 1
+    "<BundleID>" => 1
   }
-  "Program" => "/Library/PrivilegedHelperTools/com.pribit.application.packetgo.switch.sase.HelperTool"
+  "Program" => "/Library/PrivilegedHelperTools/<BundleID>"
   ...
 }
 ```
 
-`MachServices` 딕셔너리에 선언된 키가 곧 launchd에 등록되는 서비스 이름이며, 클라이언트가 `NSXPCConnection(machServiceName:)`에 전달하는 문자열과 정확히 일치해야 합니다.
+**확인 포인트**: `MachServices`의 키가 곧 launchd에 등록되는 서비스 이름이며, 클라이언트가 `NSXPCConnection(machServiceName:)`에 넘기는 문자열과 **대소문자까지** 일치해야 합니다.
 
-### System Extension(Network Extension) 상태 확인
-
-System Extension은 `systemextensionsctl`로 설치 및 활성화 상태를 확인할 수 있습니다.
+### 실습 6. 시스템 익스텐션 상태와 label 확인하기
 
 ```bash
-# 설치된 System Extension 목록
 systemextensionsctl list
 ```
 
-출력 예시:
-
-```
-1 extension(s)
+```text
+2 extension(s)
 --- com.apple.system_extension.network_extension
-enabled  active  teamID     bundleID (version)                              name       [state]
-*        *       TEAMID1234 com.example.app.extension (1.0.0/1)             MyExtension [activated enabled]
+enabled  active  teamID    bundleID (version)        name       [state]
+*        *       <TeamID>  <BundleID> (<Version>)    MyFilter   [activated enabled]
+--- com.apple.system_extension.endpoint_security
+enabled  active  teamID    bundleID (version)        name       [state]
+*        *       <TeamID>  <BundleID> (<Version>)    PRIBITEDR  [activated enabled]
 ```
 
-System Extension의 MachServiceName도 `launchctl print system/`으로 동일하게 확인됩니다.
+익스텐션이 `[activated enabled]`라면 sysextd가 launchd 등록까지 마친 상태입니다. 시스템 익스텐션은 label이 `<BundleID>`와 다르므로 **먼저 label을 찾고**, 그 label로 상세 정보를 조회합니다.
 
 ```bash
-# System Extension의 MachService 확인 — LaunchDaemon과 동일한 명령어
-sudo launchctl print system/com.example.app.extension
+# 1) 번들 ID로 launchd label 찾기
+sudo launchctl print system/ | grep <BundleID>
+```
 
-# System Extension 바이너리 위치 확인
+```text
+NetworkExtension.<BundleID>.<Version>     ← Network Extension
+<TeamID>.<BundleID>                        ← Endpoint Security
+```
+
+```bash
+# 2) 찾은 label로 상세 조회 (endpoints 블록 확인)
+sudo launchctl print system/NetworkExtension.<BundleID>.<Version>
+sudo launchctl print system/<TeamID>.<BundleID>
+
+# 익스텐션 바이너리 위치
 ls /Library/SystemExtensions/
 ```
 
-### 실전 디버깅 흐름
+### 실전 디버깅 체크리스트
 
-XPC 연결이 실패할 때 다음 순서로 확인하면 원인을 빠르게 좁힐 수 있습니다.
+XPC 연결이 실패하면 위에서부터 차례로 확인합니다. 앞의 실습 번호를 함께 적어 두었습니다.
 
-**LaunchDaemon 기반 서비스:**
-
-```
-1. plist에 MachServices가 선언되어 있는가?
-   → plutil -p /Library/LaunchDaemons/<label>.plist
-
-2. Job이 launchd에 로드되어 있는가?
-   → sudo launchctl list | grep <label>
-
-3. 서비스 이름이 endpoint로 등록되어 있는가?
-   → sudo launchctl print system/<label> | grep endpoints -A 5
-
-4. 프로세스가 실행 중이고 receive right를 보유하고 있는가?
-   → sudo lsmp -p <pid>
-
-5. 클라이언트 코드의 machServiceName 문자열이 정확히 일치하는가?
-   → plist의 MachServices 키와 대소문자까지 비교
-```
-
-**Network Extension (System Extension) 기반 서비스:**
-
-```
-1. System Extension이 활성화되어 있는가?
-   → systemextensionsctl list
-
-2. sysextd가 launchd에 등록을 완료했는가?
-   → sudo launchctl print system/<bundleID>
-
-3. endpoint가 정상적으로 등록되어 있는가?
-   → sudo launchctl print system/<bundleID> | grep endpoints -A 5
-
-4. NEMachServiceName에 Team ID 접두사가 올바른가?
-   → Info.plist의 NEMachServiceName과 실제 Team ID 비교
-
-5. 프로세스가 실행 중이고 receive right를 보유하고 있는가?
-   → sudo lsmp -p <pid>
-```
+| # | 확인할 것 | 명령어 | 실습 |
+|---|----------|--------|------|
+| 1 | 서비스 이름이 선언되어 있는가? | `plutil -p <plist>` | 5 |
+| 2 | (익스텐션) 활성화되어 있는가? | `systemextensionsctl list` | 6 |
+| 3 | Job이 launchd에 로드되어 있는가? | `sudo launchctl list` 에서 label 검색 | 3 |
+| 4 | 서비스가 등록되어 있는가? (`endpoints` 블록) | `sudo launchctl print system/<label>` (익스텐션은 label 형식 주의) | 2, 6 |
+| 5 | 프로세스가 receive right를 갖고 있는가? | `sudo lsmp -p <pid>` | 4 |
+| 6 | 클라이언트 문자열이 정확히 일치하는가? | 코드의 `machServiceName`과 plist 키 비교 | — |
+| 7 | (Network Extension) Team ID 접두사가 맞는가? | `NEMachServiceName`과 실제 Team ID 비교 | — |
 
 ---
 
@@ -803,6 +892,7 @@ XPC 연결이 실패할 때 다음 순서로 확인하면 원인을 빠르게 �
 | 포트 할당 | 커널 | `mach_port_allocate()` — 메시지 큐 생성 |
 | 이름 등록 | launchd | `bootstrap_check_in()` — 서비스 이름 ↔ 포트 매핑 |
 | 이름 조회 | launchd | `bootstrap_look_up()` — 이름으로 send right 획득 |
+| 익스텐션 등록 | sysextd → launchd | `NEMachServiceName` / `NSEndpointSecurityMachServiceName` → `NetworkExtension.<BundleID>.<Version>` / `<TeamID>.<BundleID>` label로 등록 |
 | on-demand 실행 | launchd | 첫 연결 시 데몬 fork/exec |
 | 메시지 전송 | 커널 | `mach_msg()` — 포트 큐에 메시지 적재 |
 | 컨텍스트 전환 | 커널 | 스케줄러가 수신 프로세스를 깨움 |
