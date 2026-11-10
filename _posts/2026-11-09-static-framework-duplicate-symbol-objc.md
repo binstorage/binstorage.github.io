@@ -826,6 +826,25 @@ PacketGO에서 `.static`으로 명시한 UILayer가 duplicate symbol 없이 링�
 - **`.static` · swift build**: `.a`는 `.o`를 모아 둔 상자일 뿐이고, `ar`은 멤버끼리 참조를 연결하지 않는다. `nm`은 멤버를 하나씩 출력하므로 `TCAProbe.o` 멤버의 미정의 20개가 그대로 보인다. 정의는 옆 멤버 `ComposableArchitecture.o`에 있지만(TCA 정의 2140), 실제로 연결되는 것은 이 `.a`를 쓰는 타겟을 링크할 때다.
 - **`.static` · xcodebuild**: `ld -r`은 미정의를 허용하고, 입력도 `Probe.o` 하나뿐이라 연결할 대상이 없다. 20개가 그대로 남고, 이 파일에는 정의도 없다(TCA 정의 0).
 
+`.a`에서 정의와 미정의가 함께 보이는 것이 처음에는 어색하다. 같은 파일 안에 정의가 있는데 왜 빈칸이 남을까. 아카이브 안을 보면 이유가 보인다.
+
+```
+libTCAProbe.a
+├── TCAProbe.o                ← TCA 심볼 20개를 미정의로 참조
+├── ComposableArchitecture.o  ← 그 20개를 포함한 TCA 심볼 2140개를 정의
+└── CasePaths.o, Dependencies.o, ...
+```
+
+`nm`을 아카이브에 실행하면 멤버별 심볼 테이블을 이어서 출력한다. 그래서 한 결과 안에 `TCAProbe.o`의 미정의 20개와 `ComposableArchitecture.o`의 정의 2140개가 같이 나온다. 정의가 같은 파일 안에 있어도 **같은 `.o` 안에 있지 않으면** 빈칸은 그대로다.
+
+이 빈칸은 `.a`를 앱에 링크할 때 ld가 채운다.
+
+1. 앱 코드가 쓰는 TCAProbe 심볼을 찾으려고 `TCAProbe.o` 멤버를 꺼낸다.
+2. 그 멤버의 미정의 20개를 채우려고 `ComposableArchitecture.o` 멤버도 꺼낸다.
+3. 둘을 앱 바이너리에 합치면서 참조를 연결한다.
+
+`.a`와 `.o`의 차이는 링크할 때 쓸 정의를 **같이 들고 다니느냐**뿐이다. `.a`는 정의를 같이 들고 다닌다. 그래서 TCA를 따로 링크하는 앱에 이 `.a`를 넣으면 TCA 정의가 링크 입력에 두 번 들어가는 구조가 된다. ld는 원래 아직 채워지지 않은 심볼이 있을 때만 아카이브 멤버를 꺼낸다. 하지만 `-ObjC`처럼 멤버를 강제로 꺼내게 하는 조건이 붙으면 아카이브 안의 `ComposableArchitecture.o`도 들어가 충돌한다(본문의 duplicate symbol).
+
 즉 미정의 심볼이 보이는 것은 static이라서 생기는 특별한 현상이 아니다. **아직 최종 링크를 거치지 않은 중간 결과물**이라서 원래 있던 참조가 드러나는 것이다. 같은 20이라도 swift build의 `.a`는 정의를 함께 들고 다니고, xcodebuild의 `.o`는 정의를 최종 링크 때 받을 `ComposableArchitecture.o`에 맡긴다는 점이 다르다.
 
 ### product 타입별로 무엇을 만드나
