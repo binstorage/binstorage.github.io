@@ -405,12 +405,22 @@ Copy …/PacketGO.app/Frameworks/DataFlowDomain_-4B04C528ADEC4588_PackageProduct
 
 (두 번째 빌드는 증분 빌드라 바뀌지 않은 `openssl.framework` 복사 줄은 다시 나오지 않았다.)
 
-빌드 로그에서 이 줄들만 뽑으려면 다음처럼 한다.
+이 비교를 직접 해보려면 먼저 빌드 로그를 파일로 남겨야 한다. `xcodebuild` 출력을 `build.log`로 저장한 뒤 필요한 줄만 뽑는다. 증분 빌드에서는 바뀌지 않은 프레임워크의 복사 줄이 빠지므로, **새 DerivedData**에서 처음부터 빌드한다.
+
+명령은 `PacketGO/`와 `UILayer/`가 나란히 있는 저장소 루트에서 실행한다. `-project` 경로가 이 위치를 기준으로 한 상대 경로이기 때문이다.
 
 ```bash
-# Xcode: Report navigator(⌘9)에서 빌드 로그를 텍스트로 저장하거나, xcodebuild 출력을 파일로 남긴 뒤
-grep -E "^Copy .*PacketGO\.app/Frameworks/" build.log
+cd <저장소 루트>        # PacketGO/PacketGO.xcodeproj, UILayer/Package.swift가 있는 곳
+DD=/tmp/dd_embed      # 새 DerivedData 경로
+xcodebuild -project PacketGO/PacketGO.xcodeproj -scheme PacketGO -configuration Debug \
+  -destination 'generic/platform=iOS Simulator' -derivedDataPath $DD build > build.log 2>&1
+
+grep -E "\*\* BUILD" build.log                           # 빌드 결과
+grep -E "^CreateUniversalBinary .*UILayer" build.log     # UILayer.framework가 만들어졌는가
+grep -E "^Copy .*PacketGO\.app/Frameworks/" build.log    # 앱 번들로 복사되는 프레임워크
 ```
+
+Embed & Sign 전후를 비교하려면 `DD`와 로그 파일 이름만 바꿔서 두 번 실행한다.
 
 정리하면 다음과 같다.
 
