@@ -218,7 +218,7 @@ let package = Package(
 )
 ```
 
-- **product type은 지정하지 않았다(automatic).** Domain도 automatic이고, 이 프로젝트에서 static으로 링크되는 것을 확인했다. `.dynamic`은 이전 글의 문제를 되살리고, `.static`을 명시하면 별도 아카이브가 만들어져 이중 포함이 다시 생길 여지가 있다.
+- **product type은 지정하지 않았다(automatic).** Domain도 automatic이고, 이 프로젝트에서 static으로 링크되는 것을 확인했다. `.dynamic`은 이전 글의 문제를 되살린다. `.static`을 명시하면 별도 아카이브가 만들어져 이중 포함이 다시 생길 수 있다고 우려했지만, 직접 빌드해 보니 automatic과 결과가 같았다(아래 "`.static`으로 명시하면?" 참고).
 - `swiftLanguageModes: [.v5]`는 기존 타겟의 `SWIFT_VERSION = 5.0`을 유지하기 위한 설정이다. tools-version 6.0의 기본값은 Swift 6 모드라서, 지정하지 않으면 strict concurrency 에러가 쏟아질 수 있다.
 - 프레임워크 시절의 umbrella header(`UILayer.h`)와 빈 `Assets.xcassets`는 삭제했다. 남겨 두면 SPM이 `.h`를 처리되지 않은 파일로 경고하고, xcassets를 리소스로 처리해 쓰지 않는 리소스 번들을 만든다. 이미지는 원래부터 SharedResources 패키지의 `Bundle.resourcesModule`로 불러오고 있었다.
 
@@ -410,6 +410,138 @@ MicroApp_PresentationLayerModule (앱)
 
 ---
 
+## `.static`으로 명시하면?
+
+UILayer는 static으로 링크되어야 한다. 그렇다면 automatic으로 두지 말고 `type: .static`으로 명시하는 게 의도가 더 분명하지 않을까?
+
+```swift
+.library(
+    name: "UILayer",
+    type: .static,
+    targets: ["UILayer"]
+),
+```
+
+### 우려: 이중 포함이 다시 생기지 않을까
+
+처음에는 `.static`을 명시하는 것을 피했다. 이유는 이랬다.
+
+automatic은 "링킹 방식을 Xcode가 정하라"는 뜻이고, `.static`은 "**정적 라이브러리를 독립된 결과물로 만들어라**"는 뜻이다. 그러면 Xcode가 UILayer를 별도 아카이브(`.a`)로 묶을 수 있고, 이때 두 가지 경우가 생긴다.
+
+| 아카이브에 들어가는 것 | 결과 |
+|------|------|
+| UILayer 코드만 | automatic과 같다. 문제없음 |
+| UILayer + 의존 모듈(Domain, TCA 등) | 이 글에서 겪은 **UILayer_Static과 똑같은 구조**가 된다. 앱이 직접 링크한 `Domain.o`와 아카이브 안의 사본이 겹치고, `-ObjC`가 사본을 강제 로드해서 duplicate symbol이 다시 난다 |
+
+두 번째 경우를 의심한 근거는 두 가지였다.
+
+1. Xcode의 Static Framework **타겟**(UILayer_Static)은 실제로 의존 패키지 `.o`를 아카이브 안에 넣었다. libtool 입력 목록으로 확인한 사실이다.
+2. SwiftPM의 `.dynamic` product는 동적이 아닌 의존성을 자기 안에 static으로 넣는다. "독립된 라이브러리"를 만들기 위한 규칙이다. 정적 product도 같은 이유로 의존성을 함께 묶을 수 있다고 봤다.
+
+하지만 둘 다 **간접적인 근거**였고, `.static` 패키지 product를 직접 빌드해 본 것은 아니었다. 이미 automatic이 검증되어 있으니 굳이 확인되지 않은 쪽을 고를 이유가 없다는 판단이었다.
+
+비슷한 우려가 한 번 빗나간 적도 있었다. iOS에서 UILayer를 `.dynamic` 패키지로 바꾸면 공유 패키지가 UILayer 안에 복사될 수 있다고 걱정했지만, 실제로는 Xcode가 공유 패키지를 동적 프레임워크로 승격해서 문제가 없었다. 그래서 `.static`도 직접 빌드해서 확인했다.
+
+### 검증 방법
+
+automatic과 `.static`을 **같은 방법**으로 비교했다. `UILayer/Package.swift`의 product에 `type` 한 줄이 있는지 없는지만 다르고, 나머지 조건은 같다.
+
+- swift-navigation 2.11.0과 `-Xlinker -ObjC`가 그대로 있는 상태
+- 각각 **새 DerivedData**에서 처음부터 빌드 (이전 빌드 결과가 섞이지 않게)
+- 아래 빌드 명령과 확인 명령 1~4를 **두 빌드에 똑같이** 실행
+
+`$DD`만 바꿔서 두 번 실행한다. automatic은 `type`을 지정하지 않은 상태, `.static`은 `type: .static`을 넣은 상태다.
+
+```bash
+DD=/tmp/dd_static     # 새 DerivedData 경로
+xcodebuild -project PacketGO/PacketGO.xcodeproj -scheme PacketGO -configuration Debug \
+  -destination 'platform=macOS,arch=arm64' -derivedDataPath $DD build > static.log 2>&1
+
+grep -E "\*\* BUILD" static.log              # 빌드 결과
+grep -c "duplicate symbol" static.log         # duplicate symbol 개수
+```
+
+빌드가 성공하는 것만으로는 부족하다. 우려한 상황이 일어났는지, 즉 **UILayer가 별도 아카이브로 만들어졌는지**와 **앱 링크 입력에 같은 모듈이 두 번 들어갔는지**를 직접 확인해야 한다.
+
+```bash
+B=$DD/Build/Products/Debug
+
+# 1. UILayer가 별도 아카이브로 만들어졌는가
+ls $B | grep -i uilayer                       # UILayer.o 인가, libUILayer.a 인가
+find $DD/Build -iname '*UILayer*.a'           # .a 파일이 있는가
+grep -E "^Libtool .*UILayer" static.log       # 아카이브를 만드는 Libtool 단계가 있었는가
+
+# 2. 앱 링크 입력에 중복이 있는가
+F=$DD/Build/Intermediates.noindex/PacketGO.build/Debug/PacketGO.build/Objects-normal/arm64/PacketGO.LinkFileList
+xargs -n1 basename < $F | sort | uniq -c | awk '$1>1'                                  # 두 번 이상 나온 입력
+xargs -n1 basename < $F | grep -E "^(UILayer|Domain|ComposableArchitecture|SwiftyBeaver)\.o$"
+
+# 3. 우려의 전제 조건(-ObjC)이 그대로 있는가
+grep -A4 "^Ld .*PacketGO.debug.dylib" static.log | grep -o -- "-Xlinker -ObjC" | head -1
+
+# 4. 링킹 형태가 바뀌지 않았는가 (승격 여부, HelperTool·앱의 static 링크)
+ls $B/PackageFrameworks
+nm -gU $B/*HelperTool | awk '{print $3}' | grep -c '^_[$]s6Domain'      # 정의된 Domain 심볼
+nm -u  $B/*HelperTool | grep -c '^_[$]s6Domain'                         # 외부 참조 Domain 심볼
+A=$B/PacketGO.app/Contents/MacOS/PacketGO.debug.dylib
+nm -gU $A | awk '{print $3}' | grep -c '^_[$]s6Domain'
+nm -gU $A | awk '{print $3}' | grep -c '^_[$]s7UILayer'
+ls $B/PacketGO.app/Contents/Frameworks
+```
+
+| 확인 | 의미 |
+|------|------|
+| 1번 | 우려의 출발점. 별도 아카이브가 없다면 사본이 들어갈 곳 자체가 없다 |
+| 2번 | 우려의 결과. 같은 `.o`가 두 번 나오면 이중 포함이다 |
+| 3번 | `-ObjC`가 빠져서 중복이 가려진 것이 아닌지 확인 |
+| 4번 | `.static`이 링크 결과를 다른 쪽으로 바꾸지 않았는지 확인 (HelperTool 조건 포함) |
+
+### 결과
+
+두 빌드에 같은 명령을 실행한 결과다.
+
+| 확인 | 항목 | automatic | `.static` |
+|------|------|------|------|
+| 빌드 | 결과 / duplicate symbol | 성공 / 0개 | 성공 / 0개 |
+| 1 | `Build/Products/Debug`의 UILayer 산출물 | `UILayer.o`, `UILayer.swiftmodule` | `UILayer.o`, `UILayer.swiftmodule` |
+| 1 | `*UILayer*.a` 파일 / Libtool 단계 | 0개 / 0회 | 0개 / 0회 |
+| 2 | 앱 링크 입력 중 2회 이상 나온 항목 | 0개 | 0개 |
+| 2 | `Domain.o` / `UILayer.o` / `ComposableArchitecture.o` / `SwiftyBeaver.o` | 각 1회 | 각 1회 |
+| 3 | `-Xlinker -ObjC` | 있음 | 있음 |
+| 4 | `PackageFrameworks` | `WebSocketModule.framework`만 | `WebSocketModule.framework`만 |
+| 4 | HelperTool Domain 정의 / 외부 참조 | 6,985 / 0 | 6,985 / 0 |
+| 4 | 앱 Domain 정의 / UILayer 정의 | 6,989 / 12,338 | 6,989 / 12,338 |
+| 4 | 앱 `Frameworks` | `libswiftCompatibilitySpan.dylib`, `openssl.framework`, `WebSocketModule.framework` | 같음 |
+
+모든 항목이 **숫자까지 같았다.**
+
+**우려는 틀렸다.** Xcode는 `.static`으로 명시해도 UILayer를 별도 아카이브로 만들지 않았다. automatic과 똑같이 `UILayer.o` 하나로 만들고, 앱을 링크할 때 패키지 그래프 전체에서 모듈마다 `.o`를 한 번씩만 넘겼다.
+
+### 왜 우려와 달랐나
+
+우려의 근거였던 두 동작은 모두 **패키지 그래프 바깥**의 이야기였다.
+
+- Xcode Static Framework 타겟은 패키지 그래프 밖에 있는 Xcode 타겟이다. 그래서 의존 패키지를 미리 아카이브에 묶어 둔다.
+- 의존성을 자기 안에 묶는 SwiftPM 규칙은 `swift build`처럼 패키지를 단독으로 빌드해서 **다른 곳에 가져다 쓸 결과물**을 만들 때 의미가 있다.
+
+같은 빌드 그래프 안에서 패키지 product를 쓸 때는 Xcode가 그래프 전체를 보고 링크한다. product 타입을 명시해도 이 원칙은 그대로였다. iOS에서 `.dynamic`을 명시했을 때 Xcode가 공유 패키지를 승격해 중복을 막은 것과 같은 결론이다.
+
+> 이 결과는 이 프로젝트의 Xcode 빌드에서 관찰한 것이다. `swift build`로 패키지를 단독 빌드하거나 xcframework로 미리 빌드해서 배포하는 경우는 확인하지 않았다.
+
+### automatic과 `.static` 중 무엇을 쓸까
+
+이 빌드에서는 결과가 완전히 같았다. 기술적으로는 어느 쪽이든 괜찮다.
+
+| | automatic | `.static` |
+|------|------|------|
+| 링크 결과 | static, 중복 없음 | 같음 |
+| 장점 | 이미 검증되어 커밋된 상태 | "UILayer는 반드시 static"이라는 의도가 코드에 드러난다 |
+| HelperTool 보호 | Domain 쪽 상황이 결정하므로 효과 같음 | 같음 |
+
+HelperTool에 중요한 것은 UILayer가 아니라 **Domain**의 링킹 형태다. Domain이 승격되는지는 같은 프로세스 안에 Domain을 링크하는 동적 바이너리가 있는지가 정한다. 그래서 UILayer를 `.static`으로 명시해도 HelperTool을 보호하는 효과는 automatic과 같다. 여기서는 이미 검증된 automatic을 유지했다.
+
+---
+
 ## 전환하면서 만난 함정
 
 ### xcodeproj와 Package.swift가 같은 폴더에 있으면
@@ -442,3 +574,5 @@ with a conflicting name: 'IssueReporting'; target names need to be unique across
 | 해결 | UILayer를 SPM 패키지로 전환 → 모든 모듈이 패키지 그래프 안에서 한 번만 링크 |
 
 두 글을 합쳐 보면 원칙은 하나다. **같은 SPM 패키지를 쓰는 코드는 모두 같은 패키지 그래프 안에 두어야 한다.** Xcode 프레임워크 타겟이 패키지를 감싸는 순간, 링커나 SPM이 볼 수 없는 경계가 생긴다. 그 경계가 Dynamic이면 링킹 타입 전파와 런타임 중복으로, Static이면 아카이브 안의 사본으로 문제를 일으킨다.
+
+> 후속 글: iOS에서 UILayer를 `.dynamic` 패키지로 바꿀 때 공유 패키지가 승격되는지 검증한 과정은 [iOS UILayer를 .dynamic 패키지로 — 공유 패키지는 승격될까, 복사될까]({% post_url 2026-11-10-ios-uilayer-dynamic-package-promotion %})에서 다룬다.
