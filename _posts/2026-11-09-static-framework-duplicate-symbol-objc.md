@@ -697,6 +697,19 @@ nm -u  <바이너리> | grep -c '^_[$]s22ComposableArchitecture'                
 ar -t  <바이너리>                                                             # (.a만) 아카이브 멤버
 ```
 
+**정의 심볼과 미정의 심볼**
+
+바이너리의 심볼 테이블에는 두 종류의 심볼이 있다.
+
+- **정의(defined) 심볼**: 실제 코드나 데이터가 **이 파일 안에 있는** 심볼이다. "TCA 정의 심볼 2140개"는 TCA의 함수, 타입 메타데이터, 프로토콜 conformance 같은 것이 이 바이너리에 실제로 들어 있다는 뜻이다. 즉 TCA 코드를 품고 있는지를 보여 준다.
+- **미정의(undefined) 심볼**: 이 파일의 코드가 **쓰기는 하지만 정의는 다른 곳에 있는** 심볼이다. "여기에 `ReducerBuilder.buildExpression`의 주소가 필요하다"는 빈칸과 같다. 이 빈칸은 링커가 정의를 찾아 연결해야 채워진다.
+
+`nm`의 옵션은 이 구분에 맞춰 쓴다. `-g`는 외부에 공개된(external) 심볼만, `-U`는 미정의 심볼을 빼고 보여 주므로 `nm -gU`는 **공개된 정의 심볼**이다. `nm -u`는 반대로 **미정의 심볼만** 보여 준다.
+
+grep 패턴의 `_$s22ComposableArchitecture`는 Swift 맹글링 규칙이다. `$s`는 Swift 심볼임을, `22`는 뒤따르는 모듈 이름 `ComposableArchitecture`의 글자 수를 뜻한다. 그래서 이 접두어로 시작하는 심볼은 TCA 모듈에 속한 것이고, `_$s8TCAProbe`도 같은 방식으로 TCAProbe 모듈의 심볼을 고른다.
+
+정리하면 "TCA 정의 심볼"은 **TCA 코드가 이 파일에 들어 있는지**를, "TCA 미정의 심볼"은 **이 파일이 TCA를 참조하는데 그 참조가 아직 연결되지 않았는지**를 보여 준다.
+
 ### 결과
 
 | | `.dynamic` · swift build | `.dynamic` · xcodebuild | `.static` · swift build | `.static` · xcodebuild |
@@ -794,7 +807,7 @@ Probe.o                ← 입력은 이것 하나
 |------|------|------|------|
 | `.dynamic` · swift build | dylib 링크 | 허용 안 됨 | 넣음 |
 | `.dynamic` · xcodebuild | dylib 링크 | 허용 안 됨 | 넣음 |
-| `.static` · swift build | 아카이브 생성 | 아카이브 안에서 해결 | 넣음 |
+| `.static` · swift build | 아카이브 생성 (링크 아님) | 남음 (정의는 같은 아카이브에 있음) | 넣음 |
 | `.static` · xcodebuild | `ld -r` (오브젝트 합치기) | 허용 | 안 넣음 |
 
 - **`.dynamic`**: dylib은 실행할 때 혼자 로드되는 완성된 바이너리다. 링커는 dylib을 만들 때 모든 심볼의 출처가 확정되기를 요구한다. TCA는 automatic 타입이라 따로 dylib이 없으므로, 링커는 TCA 오브젝트를 dylib 안에 static으로 넣는다.
@@ -802,6 +815,18 @@ Probe.o                ← 입력은 이것 하나
 - **`.static` · xcodebuild**: Xcode는 패키지 그래프 전체를 알고 있으므로 독립 결과물을 만들 필요가 없다. 모듈마다 `.o`를 하나씩(`TCAProbe.o`, `ComposableArchitecture.o`, …) 만들어 두고, 최종 타겟을 링크할 때 필요한 `.o`를 **한 번씩만** 넘긴다. 미리 묶어 두면 앱이 이미 링크한 TCA와 겹칠 수 있으니(UILayer_Static의 이중 포함) 결정을 마지막까지 미루는 구조다.
 
 PacketGO에서 `.static`으로 명시한 UILayer가 duplicate symbol 없이 링크된 것도 같은 이유다. 앱 링크 입력에 `UILayer.o`, `Domain.o`, `ComposableArchitecture.o`가 각각 한 번씩만 들어갔다(본문 "`.static`으로 명시하면?"의 결과 표).
+
+**왜 `.dynamic`에만 TCA 미정의 심볼이 없나**
+
+결과 표에서 TCA 미정의 심볼은 `.dynamic` 두 경우만 0이고, `.static` 두 경우는 모두 20이다. 이 차이는 TCA를 품었는지가 아니라 **최종 링크를 거쳤는지**에서 나온다.
+
+네 경우 모두 컴파일 직후의 `Probe.o`는 같다. `@Reducer`, `Reduce` 같은 TCA API를 부르므로 TCA 미정의 심볼 20개를 갖고 있다. 그 뒤의 처리가 다르다.
+
+- **`.dynamic`**: dylib 링크는 최종 링크다. 링커가 `Probe.o`와 함께 `ComposableArchitecture.o` 등을 입력으로 받아 20개의 빈칸을 같은 이미지 안의 주소로 연결한다. 연결이 끝난 참조는 심볼 테이블에 미정의로 남지 않는다. dylib에 미정의로 남을 수 있는 것은 실행 시 다른 dylib(Foundation, libswiftCore 등)에서 가져올 심볼뿐인데, TCA는 따로 dylib이 없으므로 0이 된다.
+- **`.static` · swift build**: `.a`는 `.o`를 모아 둔 상자일 뿐이고, `ar`은 멤버끼리 참조를 연결하지 않는다. `nm`은 멤버를 하나씩 출력하므로 `TCAProbe.o` 멤버의 미정의 20개가 그대로 보인다. 정의는 옆 멤버 `ComposableArchitecture.o`에 있지만(TCA 정의 2140), 실제로 연결되는 것은 이 `.a`를 쓰는 타겟을 링크할 때다.
+- **`.static` · xcodebuild**: `ld -r`은 미정의를 허용하고, 입력도 `Probe.o` 하나뿐이라 연결할 대상이 없다. 20개가 그대로 남고, 이 파일에는 정의도 없다(TCA 정의 0).
+
+즉 미정의 심볼이 보이는 것은 static이라서 생기는 특별한 현상이 아니다. **아직 최종 링크를 거치지 않은 중간 결과물**이라서 원래 있던 참조가 드러나는 것이다. 같은 20이라도 swift build의 `.a`는 정의를 함께 들고 다니고, xcodebuild의 `.o`는 정의를 최종 링크 때 받을 `ComposableArchitecture.o`에 맡긴다는 점이 다르다.
 
 ### product 타입별로 무엇을 만드나
 
