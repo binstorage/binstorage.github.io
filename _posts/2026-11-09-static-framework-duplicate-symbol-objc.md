@@ -369,6 +369,8 @@ file Domain_…_PackageProduct.framework/Domain_…_PackageProduct
 
 확장자만 없을 뿐 내용은 dylib 그대로다. `LC_LOAD_DYLIB`에도 `@rpath/D.framework/D` 경로로 기록된다.
 
+> 같은 패키지를 swift build와 xcodebuild로 각각 빌드해 비교한 결과는 글 끝의 "별첨: swift build와 xcodebuild의 결과물 비교"에 정리했다.
+
 ### otool -L에는 직접 의존성만 나온다
 
 동적 링크를 확인할 때 주의할 점이 하나 있다. 앱 번들의 `Frameworks/`에 프레임워크가 분명히 들어 있는데, 앱 실행 파일을 `otool -L`로 보면 목록에 없을 수 있다. 다음은 다른 iOS 프로젝트(Xcode 프레임워크 타겟으로 레이어를 나눈 구조)의 예다.
@@ -526,7 +528,7 @@ ls $B/PacketGO.app/Contents/Frameworks
 
 같은 빌드 그래프 안에서 패키지 product를 쓸 때는 Xcode가 그래프 전체를 보고 링크한다. product 타입을 명시해도 이 원칙은 그대로였다. iOS에서 `.dynamic`을 명시했을 때 Xcode가 공유 패키지를 승격해 중복을 막은 것과 같은 결론이다.
 
-> 이 결과는 이 프로젝트의 Xcode 빌드에서 관찰한 것이다. `swift build`로 패키지를 단독 빌드하거나 xcframework로 미리 빌드해서 배포하는 경우는 확인하지 않았다.
+> 이 결과는 이 프로젝트의 Xcode 빌드에서 관찰한 것이다. xcframework로 미리 빌드해서 배포하는 경우는 확인하지 않았다. `swift build`로 패키지를 단독 빌드하면 `.static` product가 의존성까지 묶은 아카이브로 나온다. 글 끝의 "별첨"에서 확인했다.
 
 ### automatic과 `.static` 중 무엇을 쓸까
 
@@ -576,3 +578,264 @@ with a conflicting name: 'IssueReporting'; target names need to be unique across
 두 글을 합쳐 보면 원칙은 하나다. **같은 SPM 패키지를 쓰는 코드는 모두 같은 패키지 그래프 안에 두어야 한다.** Xcode 프레임워크 타겟이 패키지를 감싸는 순간, 링커나 SPM이 볼 수 없는 경계가 생긴다. 그 경계가 Dynamic이면 링킹 타입 전파와 런타임 중복으로, Static이면 아카이브 안의 사본으로 문제를 일으킨다.
 
 > 후속 글: iOS에서 UILayer를 `.dynamic` 패키지로 바꿀 때 공유 패키지가 승격되는지 검증한 과정은 [iOS UILayer를 .dynamic 패키지로 — 공유 패키지는 승격될까, 복사될까]({% post_url 2026-11-10-ios-uilayer-dynamic-package-promotion %})에서 다룬다.
+
+---
+
+## 별첨: swift build와 xcodebuild의 결과물 비교
+
+"승격된 패키지는 왜 .dylib이 아니라 .framework인가"와 "`.static`으로 명시하면?"에서 다룬 내용을 직접 확인하기 위해, 같은 패키지를 product 타입(`.dynamic`, `.static`)과 빌드 방법(swift build, xcodebuild)만 바꿔 네 번 빌드했다.
+
+### 테스트 패키지
+
+UILayer와 조건을 맞춘 최소 패키지 `TCAProbe`를 만들었다. iOS 17.4, TCA 1.26.2, Xcode 27.2, Swift 6.4.2 환경이다.
+
+```
+TCAProbe/
+├── Package.swift
+└── Sources/TCAProbe/Probe.swift
+```
+
+```swift
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "TCAProbe",
+    platforms: [.iOS("17.4")],
+    products: [
+        .library(name: "TCAProbe", type: .dynamic, targets: ["TCAProbe"])   // .static으로 바꿔 한 번 더
+    ],
+    dependencies: [
+        .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.26.2")
+    ],
+    targets: [
+        .target(
+            name: "TCAProbe",
+            dependencies: [.product(name: "ComposableArchitecture", package: "swift-composable-architecture")]
+        )
+    ],
+    swiftLanguageModes: [.v5]
+)
+```
+
+```swift
+// Sources/TCAProbe/Probe.swift
+import ComposableArchitecture
+
+@Reducer
+public struct Probe {
+    @ObservableState
+    public struct State: Equatable {
+        public var n = 0
+        public init() {}
+    }
+    public enum Action { case tap }
+    public init() {}
+    public var body: some ReducerOf<Self> {
+        Reduce { state, _ in
+            state.n += 1
+            return .none
+        }
+    }
+}
+```
+
+### 빌드 방법
+
+모두 실기기(iOS arm64)용으로 빌드한다. `.dynamic`과 `.static`은 `type` 한 줄만 바꾸고, 결과가 섞이지 않게 폴더를 따로 두었다.
+
+**swift build**
+
+swift build는 기본으로 호스트(macOS)용으로 빌드한다. iOS 전용 패키지는 iOS SDK와 triple을 직접 지정해야 한다.
+
+```bash
+cd TCAProbe
+SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+
+swift build --sdk "$SDK" --triple arm64-apple-ios
+BIN=$(swift build --sdk "$SDK" --triple arm64-apple-ios --show-bin-path)   # …/.build/out/Products/Debug-iphoneos
+```
+
+> **triple에 버전을 붙이면 안 된다.** `arm64-apple-ios17.4`처럼 지정하면 swift-perception에서 빌드가 실패한다.
+>
+> ```
+> PerceptionCore/SwiftUI/Bindable.swift:86:13: error: 'Bindable' is unavailable in iOS: Use @Bindable without the 'Perception.' prefix.
+> ```
+>
+> triple에 버전을 붙이면 의존 패키지까지 **모두** iOS 17.4로 컴파일된다. 그런데 `Perception.Bindable`은 `@available(iOS, obsoleted: 17, …)`로 선언되어 있어서, swift-perception 내부 코드가 쓸 수 없는 API가 된다. 버전 없이 `arm64-apple-ios`로 지정하면 각 패키지가 자기 `platforms` 최소 버전으로 컴파일된다. TCAProbe 자신은 `LC_BUILD_VERSION`에 `minos 17.4`로 기록된다.
+
+**xcodebuild**
+
+`Package.swift`가 있는 폴더에서 바로 빌드한다. 스킴 이름은 `xcodebuild -list`로 확인한다.
+
+```bash
+cd TCAProbe
+xcodebuild -list                     # Schemes: TCAProbe
+DD=/tmp/dd_probe                     # 새 DerivedData 경로
+xcodebuild -scheme TCAProbe -destination 'generic/platform=iOS' -derivedDataPath $DD build
+P=$DD/Build/Products/Debug-iphoneos
+```
+
+결과물 위치는 다음과 같다.
+
+| | swift build (`$BIN`) | xcodebuild (`$P`) |
+|------|------|------|
+| `.dynamic` | `libTCAProbe.dylib` | `PackageFrameworks/TCAProbe.framework/TCAProbe` |
+| `.static` | `libTCAProbe.a` | `TCAProbe.o` |
+
+### 확인 명령
+
+네 결과물에 같은 명령을 실행했다.
+
+```bash
+file <바이너리>
+otool -D <바이너리>                                                           # install name
+otool -L <바이너리>                                                           # 로드할 dylib 목록
+nm -gU <바이너리> | awk '{print $3}' | grep -c '^_[$]s8TCAProbe'                # TCAProbe 정의 심볼
+nm -gU <바이너리> | awk '{print $3}' | grep -c '^_[$]s22ComposableArchitecture' # TCA 정의 심볼
+nm -u  <바이너리> | grep -c '^_[$]s22ComposableArchitecture'                    # TCA 미정의(외부 참조) 심볼
+ar -t  <바이너리>                                                             # (.a만) 아카이브 멤버
+```
+
+### 결과
+
+| | `.dynamic` · swift build | `.dynamic` · xcodebuild | `.static` · swift build | `.static` · xcodebuild |
+|------|------|------|------|------|
+| 결과물 | `libTCAProbe.dylib` | `TCAProbe.framework/TCAProbe` | `libTCAProbe.a` | `TCAProbe.o` |
+| 크기 | 11M | 11M | 15M | 68K |
+| `file` | dynamically linked shared library arm64 | dynamically linked shared library arm64 | current ar archive random library | Mach-O 64-bit object arm64 |
+| `otool -D` | `@rpath/libTCAProbe.dylib` | `@rpath/TCAProbe.framework/TCAProbe` | 없음 | 없음 |
+| `otool -L` (시스템 제외) | 자기 자신뿐 | 자기 자신뿐 | 없음 | 없음 |
+| TCAProbe 정의 심볼 | 61 | 61 | 61 | 61 |
+| TCA 정의 심볼 | 2140 | 2140 | 2140 | **0** |
+| TCA 미정의 심볼 | 0 | 0 | 20 | 20 |
+
+**`.dynamic` · swift build**
+
+```bash
+otool -D $BIN/libTCAProbe.dylib
+# @rpath/libTCAProbe.dylib
+
+otool -L $BIN/libTCAProbe.dylib
+# @rpath/libTCAProbe.dylib (compatibility version 1.0.0, current version 1.0.0)
+# /System/Library/Frameworks/Foundation.framework/Foundation
+# /usr/lib/libobjc.A.dylib
+# /usr/lib/libSystem.B.dylib
+# ...                                     ← TCA 관련 dylib 없음
+```
+
+**`.dynamic` · xcodebuild**
+
+```bash
+otool -D $P/PackageFrameworks/TCAProbe.framework/TCAProbe
+# @rpath/TCAProbe.framework/TCAProbe
+
+otool -L $P/PackageFrameworks/TCAProbe.framework/TCAProbe
+# @rpath/TCAProbe.framework/TCAProbe (compatibility version 0.0.0, current version 0.0.0)
+# (나머지 시스템 라이브러리는 swift build와 같음)
+```
+
+**`.static` · swift build**
+
+```bash
+ls $BIN
+# libTCAProbe.a  PackageFrameworks(비어 있음)  TCAProbe.o  TCAProbe.swiftmodule
+
+ar -t $BIN/libTCAProbe.a
+# __.SYMDEF SORTED
+# TCAProbe.o
+# ComposableArchitecture.o
+# CasePaths.o  CasePathsCore.o  Clocks.o  CombineSchedulers.o  ConcurrencyExtras.o  CustomDump.o
+# Dependencies.o  DependenciesMacros.o  IdentifiedCollections.o  InternalCollectionsUtilities.o
+# IssueReporting.o  OrderedCollections.o  Perception.o  PerceptionCore.o  Sharing.o  Sharing1.o
+# Sharing2.o  SwiftNavigation.o  SwiftUINavigation.o  UIKitNavigation.o  UIKitNavigationShim.o
+```
+
+**`.static` · xcodebuild**
+
+```bash
+ls $P
+# CasePaths.o  ComposableArchitecture.o  …  TCAProbe.o   ← 패키지마다 .o 하나씩
+# PackageFrameworks(비어 있음)
+
+nm -m $P/TCAProbe.o | grep undefined | grep '_[$]s22ComposableArchitecture' | head -2
+# (undefined) external _$s22ComposableArchitecture14ReducerBuilderO15buildExpression…
+# (undefined) external _$s22ComposableArchitecture14ReducerBuilderO16buildFinalResult…
+```
+
+빌드 로그에도 `Ld …/TCAProbe.o`만 있고, 아카이브를 만드는 `Libtool` 단계는 없다.
+
+### 읽는 법
+
+- **`.dynamic` 두 가지는 코드가 같다.** TCAProbe 61개, TCA 2140개로 숫자가 같고, 둘 다 automatic 타입인 TCA를 static으로 품고 있다. 다른 것은 **포장 형태와 install name뿐**이다. swift build는 `lib*.dylib`를 만들고, Xcode는 앱에 임베드할 수 있도록 같은 dylib을 `.framework`로 포장하면서 확장자를 뗀다.
+- **`.static` · swift build는 의존성까지 묶은 독립 아카이브다.** TCA와 그 의존 패키지 `.o`를 모두 담았다. TCA 미정의 20개는 `TCAProbe.o` 멤버가 참조하는 것이고, 같은 아카이브 안의 `ComposableArchitecture.o`가 정의하고 있다. 이 `.a`를 이미 TCA를 링크하는 앱에 가져다 쓰면 UILayer_Static과 같은 이중 포함 구조가 된다. "`.static`으로 명시하면?"에서 걱정한 모습 그대로다.
+- **`.static` · xcodebuild는 자기 코드만 담은 오브젝트다.** TCA는 참조만 하고(정의 0, 미정의 20), 옆에 `ComposableArchitecture.o`로 따로 있다. 어디에 넣을지는 이 패키지를 쓰는 타겟을 링크할 때 정해진다. PacketGO에서 `.static`으로 명시한 UILayer가 `UILayer.o` 하나로만 나온 것과 같은 모습이다.
+- **TCAProbe 정의 61개는 네 경우 모두 같다.** 자기 코드는 항상 그대로 들어가고, 달라지는 것은 의존성(TCA)을 어디에 두느냐다.
+- **`otool -D`, `otool -L`은 dylib에만 의미가 있다.** `.a`와 `.o`에는 로드 정보(load command)가 없어서 아무것도 나오지 않는다.
+
+**왜 `.static` · xcodebuild에만 TCA가 없나**
+
+나머지 셋은 모두 **완성된 결과물**을 만드는 단계를 거쳐서 TCA가 들어갔다. `.static` · xcodebuild만 자기 소스를 오브젝트 하나로 합치는 데서 멈췄다. 빌드 로그의 링크 명령이 이를 보여 준다.
+
+```
+Ld …/Debug-iphoneos/TCAProbe.o
+   … -Xlinker -r … -filelist TCAProbe.LinkFileList -o …/TCAProbe.o
+
+# TCAProbe.LinkFileList 내용
+Probe.o                ← 입력은 이것 하나
+```
+
+- `ld -r`은 **relocatable link**다. 여러 오브젝트를 큰 오브젝트 하나로 합치기만 하고, 미정의 심볼이 남아 있어도 에러를 내지 않는다.
+- 입력은 TCAProbe 자신의 `Probe.o`뿐이다. `ComposableArchitecture.o`는 넘겨지지 않았다.
+
+그래서 `TCAProbe.o`에는 자기 코드 61개만 있고, TCA는 나중에 채워질 미정의 심볼 20개로 남는다. TCA를 어디에 넣을지는 이 패키지를 쓰는 앱이나 프레임워크를 링크할 때 정해진다. 이 테스트에는 그런 타겟이 없으니 TCA가 들어갈 단계 자체가 없었다.
+
+| | 수행한 작업 | 미정의 심볼 | TCA |
+|------|------|------|------|
+| `.dynamic` · swift build | dylib 링크 | 허용 안 됨 | 넣음 |
+| `.dynamic` · xcodebuild | dylib 링크 | 허용 안 됨 | 넣음 |
+| `.static` · swift build | 아카이브 생성 | 아카이브 안에서 해결 | 넣음 |
+| `.static` · xcodebuild | `ld -r` (오브젝트 합치기) | 허용 | 안 넣음 |
+
+- **`.dynamic`**: dylib은 실행할 때 혼자 로드되는 완성된 바이너리다. 링커는 dylib을 만들 때 모든 심볼의 출처가 확정되기를 요구한다. TCA는 automatic 타입이라 따로 dylib이 없으므로, 링커는 TCA 오브젝트를 dylib 안에 static으로 넣는다.
+- **`.static` · swift build**: 링크는 아니지만, SwiftPM이 `.static` product를 **외부에 가져다 쓸 독립 결과물**로 만든다. 이 `.a`를 받는 쪽은 TCA가 필요하다는 것을 모르므로, TCA를 포함한 의존성 `.o`를 함께 담는다.
+- **`.static` · xcodebuild**: Xcode는 패키지 그래프 전체를 알고 있으므로 독립 결과물을 만들 필요가 없다. 모듈마다 `.o`를 하나씩(`TCAProbe.o`, `ComposableArchitecture.o`, …) 만들어 두고, 최종 타겟을 링크할 때 필요한 `.o`를 **한 번씩만** 넘긴다. 미리 묶어 두면 앱이 이미 링크한 TCA와 겹칠 수 있으니(UILayer_Static의 이중 포함) 결정을 마지막까지 미루는 구조다.
+
+PacketGO에서 `.static`으로 명시한 UILayer가 duplicate symbol 없이 링크된 것도 같은 이유다. 앱 링크 입력에 `UILayer.o`, `Domain.o`, `ComposableArchitecture.o`가 각각 한 번씩만 들어갔다(본문 "`.static`으로 명시하면?"의 결과 표).
+
+### product 타입별로 무엇을 만드나
+
+`.dynamic`이면 프레임워크를 만들고 `.static`이면 오브젝트 파일만 만드는 것처럼 보이지만, 정확히는 **오브젝트 파일은 타입과 상관없이 항상 만들고, `.dynamic`일 때만 그 오브젝트로 프레임워크를 하나 더 만든다.**
+
+비교를 위해 `type`을 지정하지 않은 automatic도 같은 방법으로 빌드했다(`.library(name: "TCAProbe", targets: ["TCAProbe"])`).
+
+**xcodebuild** (`Debug-iphoneos/`)
+
+```bash
+ls $P | grep -c '\.o$'      # automatic 23 / .static 23 / .dynamic 23
+ls $P/PackageFrameworks     # automatic 비어 있음 / .static 비어 있음 / .dynamic TCAProbe.framework
+grep -c "^Libtool" xb.log   # 셋 다 0
+```
+
+| product 타입 | 타겟별 `X.o` | 추가로 만드는 것 | `TCAProbe.o` |
+|------|------|------|------|
+| automatic | 만듦 (23개) | 없음 | 68K, TCA 정의 0 / 미정의 20, `ld -r` |
+| `.static` | 만듦 (23개) | 없음 (`.a`도 만들지 않음) | 68K, TCA 정의 0 / 미정의 20, `ld -r` |
+| `.dynamic` | 만듦 (23개) | `PackageFrameworks/TCAProbe.framework` | — |
+
+- `.o`는 product가 아니라 **타겟 단위**로 만들어진다. 타겟의 소스 오브젝트를 `ld -r`로 합친 것이다. TCAProbe와 TCA, 그 의존 패키지까지 타겟마다 하나씩 23개다.
+- `.dynamic`은 여기에 더해 이 `.o`들을 dylib으로 링크해 `.framework`로 포장한다.
+- automatic과 `.static`은 Xcode 안에서 결과가 같다. 본문에서 PacketGO의 UILayer를 automatic과 `.static`으로 비교했을 때 둘 다 `UILayer.o` 하나만 나온 것과 같다.
+- automatic은 원래 이 상태로 남지만, 앱과 같은 프로세스의 동적 바이너리가 함께 쓰면 `X_…_PackageProduct.framework`로 **승격**된다. 이 경우는 TCAProbe가 아니라 PacketGO에서 관찰한 것이다.
+
+**swift build** (`.build/out/Products/Debug-iphoneos/`)
+
+| product 타입 | 결과물 |
+|------|------|
+| automatic | `libTCAProbe.a` (오브젝트 24개(목차 포함), 15M, TCA 정의 2140) |
+| `.static` | `libTCAProbe.a` (위와 멤버 목록까지 같음) |
+| `.dynamic` | `libTCAProbe.dylib` (TCA를 static으로 포함) |
+
+swift build에서도 automatic과 `.static`의 결과는 같았다. `ar -t` 멤버 목록을 `diff`로 비교해도 차이가 없었다. 패키지를 단독 빌드하면 automatic도 정적 라이브러리로 만든다. swift build는 패키지를 **외부에 줄 결과물**로 만드는 도구라 `.a`나 `.dylib`를 만든다. Xcode는 패키지 그래프 안에서 최종 타겟을 링크할 때 `.o`를 직접 넘기므로 `.a`가 필요 없다.
+
+정리하면, SwiftPM의 "의존성을 product 안에 묶는다"는 규칙은 swift build로 패키지를 **단독 빌드할 때** 그대로 적용된다. Xcode가 패키지 그래프 안에서 빌드할 때는 `.static`이라도 묶지 않고, 링크하는 쪽에서 모듈마다 `.o`를 한 번씩만 넘긴다.

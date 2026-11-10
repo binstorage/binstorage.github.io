@@ -1,0 +1,29 @@
+{% comment %}
+  렌더링된 본문(include.html)의 h2, h3를 읽어 목차를 만든다.
+  제목이 2개 미만이면 출력하지 않는다.
+{% endcomment %}
+{% assign toc_parts = include.html | split: '<h' %}
+{% capture toc_items %}
+{% for part in toc_parts offset:1 %}
+  {% assign level = part | slice: 0 %}
+  {% if level == '2' or level == '3' %}
+    {% assign open_tag = part | split: '>' | first %}
+    {% if open_tag contains 'id="' %}
+      {% assign heading_id = open_tag | split: 'id="' | last | split: '"' | first %}
+      {% assign heading_title = part | remove_first: open_tag | remove_first: '>' | split: '</h' | first | strip_html | strip %}
+<li class="post-toc__item post-toc__item--h{{ level }}"><a href="#{{ heading_id }}">{{ heading_title }}</a></li>
+    {% endif %}
+  {% endif %}
+{% endfor %}
+{% endcapture %}
+{% assign toc_count = toc_items | split: '<li' | size | minus: 1 %}
+{% if toc_count >= 2 %}
+<nav class="post-toc" aria-label="목차">
+  <details open>
+    <summary class="post-toc__title">목차</summary>
+    <ul class="post-toc__list">
+      {{ toc_items }}
+    </ul>
+  </details>
+</nav>
+{% endif %}

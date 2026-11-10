@@ -17,6 +17,13 @@ layout: default
       {% endif %}
     </div>
   </header>
+  {% if page.description %}
+  <section class="post-summary" aria-label="요약">
+    <p class="post-summary__title">요약</p>
+    <p class="post-summary__text">{{ page.description | escape }}</p>
+  </section>
+  {% endif %}
+  {% include toc.html html=content %}
   <div class="page-content post-article__content">
     {{ content }}
   </div>
