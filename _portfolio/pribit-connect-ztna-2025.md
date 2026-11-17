@@ -11,12 +11,12 @@ order: 2
 | 항목 | 내용 |
 | --- | --- |
 | 소속 | 프라이빗테크놀로지(주) 연구소 모바일 파트 |
-| 기간 | 2025.01 - 2025.12 (ZTP 개발과 병행) |
+| 기간 | 2025.01 - 2025.12 (PacketGo OS 개발과 병행) |
 | 인원 | [확인 필요] |
 | 담당 | macOS·iOS 에이전트 기능 개발, 최적화, 고객사 대응 |
 | 플랫폼 | macOS, iOS |
 
-2024년에 고도화한 [PRIBIT Connect 2.6]({{ '/portfolio/packetgo-switch-advancement/' | relative_url }})(ZTNA)의 유지보수와 추가 기능 개발입니다. 하반기부터는 [ZTP 프로젝트]({{ '/portfolio/packetgo-ztp/' | relative_url }}) 설계·개발과 병행했습니다.
+2024년에 고도화한 [PRIBIT Connect 2.6]({{ '/portfolio/packetgo-switch-advancement/' | relative_url }})(ZTNA)의 유지보수와 추가 기능 개발입니다. 하반기부터는 [PacketGo OS 프로젝트]({{ '/portfolio/packetgo-ztp/' | relative_url }}) 설계·개발과 병행했습니다.
 
 ---
 
@@ -92,4 +92,4 @@ order: 2
 ## 회고
 
 - **배운 점**: Network Extension의 Provider마다 할 수 있는 일과 제한이 분명히 다르다는 것을 배웠습니다. 요구사항을 받으면 먼저 어느 Provider에서 처리할 수 있는지 확인하는 습관이 생겼습니다.
-- **아쉬운 점**: 운영 중인 제품을 유지보수하면서 구조적 한계(테스트 불가, 사이드 이펙트)를 계속 느꼈고, 이 경험이 ZTP 아키텍처 설계로 이어졌습니다.
+- **아쉬운 점**: 운영 중인 제품을 유지보수하면서 구조적 한계(테스트 불가, 사이드 이펙트)를 계속 느꼈고, 이 경험이 PacketGo OS 아키텍처 설계로 이어졌습니다.
