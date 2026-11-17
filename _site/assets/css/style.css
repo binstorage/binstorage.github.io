@@ -522,7 +522,7 @@ table {
       .blog-filter__btn--active:hover {
         color: var(--color-bg); }
 
-.post-card--hidden {
+.post-card.post-card--hidden {
   display: none; }
 
 .post-list {

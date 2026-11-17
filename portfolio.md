@@ -2,6 +2,7 @@
 layout: page
 title: 포트폴리오
 permalink: /portfolio/
+published: false
 ---
 
 <div class="portfolio-page" markdown="1">

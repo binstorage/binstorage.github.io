@@ -2,7 +2,7 @@
 layout: post
 title: "TCA await send(.action) 내부 동작 원리 — Send 구조체부터 RootStore 콜스택까지"
 date: 2026-10-07
-categories: [Swift]
+categories: [iOS, macOS]
 description: "TCA .run Effect 내부의 await send가 reducer 완료까지 기다리는 이유와, 비동기 Effect 완료까지는 기다리지 않는 이유를 내부 콜스택으로 분석한다."
 ---
 

@@ -2,7 +2,7 @@
 layout: post
 title: "Swift Concurrency 내부 동작 — Task의 actor context 상속부터 await의 LLVM IR까지"
 date: 2026-09-08
-categories: [Swift]
+categories: [iOS, macOS]
 description: "Task가 actor context를 상속하는 메커니즘, Actor 격리와 nonisolated/Sendable의 관계, 그리고 await가 LLVM IR 수준에서 어떻게 Partial Function으로 분리되는지 정리합니다."
 ---
 
