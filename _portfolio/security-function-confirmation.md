@@ -1,8 +1,8 @@
 ---
 title: "보안 기능 확인서 대응 — KCMVP 타겟 OS 에이전트"
 period: "2024.01 - 2024.05"
-description: "보안 기능 확인서 취득을 위해, 제품보다 낮은 KCMVP 타겟 OS 버전에서 동작하는 macOS·iOS 에이전트를 개발했습니다. SwiftUI를 쓸 수 없어 UIKit·AppKit으로 UI를 다시 만들었습니다."
-skills: [Swift, UIKit, AppKit, KCMVP, 보안 기능 확인서]
+description: "보안 기능 확인서를 받으려면 VPN 모듈에 KCMVP 암호 모듈을 넣어야 했지만, KCMVP가 Switch가 지원하는 높은 OS 버전과 호환되지 않아 낮은 OS에서 동작하는 macOS(AppKit)·iOS(UIKit) 에이전트를 새로 만들었습니다. KCMVP 상위 버전 제공 예정으로 개발 도중 중단했습니다."
+skills: [Swift, C++, Objective-C++, UIKit, AppKit, Combine, Network Extension, System Extension, App Extension, Swift Package Manager, KCMVP]
 order: 5
 ---
 
@@ -16,16 +16,15 @@ order: 5
 | 담당 | KCMVP 타겟 OS용 macOS·iOS 에이전트 설계·개발 |
 | 플랫폼 | macOS, iOS (KCMVP 타겟 OS 버전) |
 
-PRIBIT Connect(PacketGO Switch) 에이전트가 **보안 기능 확인서**를 받으려면 검증된 암호 모듈(**KCMVP**)을 적용해야 했습니다. 그런데 KCMVP의 타겟 OS 버전이 당시 제품(PRIBIT Connect 2.5)의 최소 지원 OS보다 낮아, 그 버전에서 동작하는 에이전트를 새로 설계·개발했습니다.
+이전에 만든 **PacketGO Switch**로 **보안 기능 확인서**를 받으려면 VPN 모듈에 검증된 암호 모듈(**KCMVP**)을 넣어야 했습니다. 그런데 KCMVP 모듈이 Switch가 지원하는 높은 OS 버전과 호환되지 않아, 낮은 OS에서 동작하는 에이전트를 새로 만들었습니다.
 
 ---
 
 ## 배경 및 목표
 
-- **배경**: 공공기관 납품을 위해 보안 기능 확인서가 필요했습니다. KCMVP 모듈이 지원하는 OS 버전이 제품의 타겟 버전보다 낮았습니다.
-- **목표**
-  - KCMVP 타겟 OS 버전에서 동작하는 macOS·iOS 에이전트 개발
-  - 낮은 OS 버전에 맞게 소스 코드 변경, KCMVP 적용 및 테스트
+- **배경**: Switch의 최소 OS를 낮추자 SwiftUI 서드파티와 SwiftUI API 일부가 낮은 OS에서 동작하지 않았습니다.
+- **판단**: 화면과 기능이 적어, 익숙한 UIKit으로 새로 만드는 쪽이 빠르다고 판단했습니다. AppKit도 OS 동작은 달라도 코드 설계·구현 방식이 UIKit과 비슷해 macOS까지 함께 진행했습니다.
+- **목표**: KCMVP 타겟 OS에서 동작하는 iOS(UIKit)·macOS(AppKit) 에이전트를 만들고 VPN 모듈에 KCMVP 암호 모듈 적용
 
 ---
 
@@ -76,9 +75,8 @@ PRIBIT Connect(PacketGO Switch) 에이전트가 **보안 기능 확인서**를 �
 
 ## 성과
 
-- 기획 대비 85%까지 진행한 시점에 보안 기능 확인서 일정과 KCMVP 타겟 OS 버전이 바뀌어 중단
-- 바뀐 KCMVP 타겟 OS 버전이 높아져 기존 PRIBIT Connect 2.6에 KCMVP를 바로 적용하는 방향으로 전환
-- 이후 **보안 기능 확인서 iOS, macOS 취득** [확인 필요 — 취득 시기]
+- KCMVP 상위 버전이 제공될 예정이라 개발 도중 중단했습니다. 보안 기능 확인서는 이후 Switch로 받을 예정입니다(미취득).
+- 이때 만든 UIKit iOS 앱이 [외교부 MFA QR 인증 앱]({{ '/portfolio/mofa-mfa-authenticator/' | relative_url }})의 바탕이 됐습니다.
 
 ---
 

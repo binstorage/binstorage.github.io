@@ -1,8 +1,8 @@
 ---
 title: "외교부 MFA QR 인증 iOS 앱"
-period: "2024.07 - 2024.12"
-description: "네트워크 필터링 기능이 Apple 개인정보 정책에 걸려 App Store 배포가 어려워지자, 기존 에이전트에서 MFA QR 인증 기능만 분리한 iOS 앱을 설계해 TestFlight 검증을 거쳐 App Store에 배포했습니다."
-skills: [Swift, iOS, App Store Connect, TestFlight]
+period: "2024.07 - 현재"
+description: "외교부의 Windows 에이전트가 Switch 제품이라 PribitConnect QR 앱을 쓸 수 없었고, Switch iOS는 패킷 필터 때문에 App Store 배포가 불가능해, KCMVP 대응 때 UIKit으로 만든 iOS 앱을 바탕으로 MFA QR 인증 앱을 만들어 App Store에 배포했습니다."
+skills: [Swift, UIKit, App Store Connect, TestFlight]
 order: 4
 ---
 
@@ -11,21 +11,21 @@ order: 4
 | 항목 | 내용 |
 | --- | --- |
 | 소속 | 프라이빗테크놀로지(주) 연구소 Mobile 파트 |
-| 기간 | 2024.07 - 2024.12 (이후 유지보수 계속) |
+| 기간 | 2024.07 - 현재 (2024.12 배포, 이후 유지보수) |
 | 인원 | [확인 필요] |
 | 담당 | 앱 설계·개발, TestFlight 검증, App Store 심사·배포 |
 | 고객사 | 외교부 |
 | 플랫폼 | iOS |
 | 배포 | App Store |
 
-외교부에 납품한 보안 솔루션에서 **MFA(다중 인증)용 QR 인증만 수행하는 iOS 앱**입니다. 기존 PRIBIT Connect iOS 에이전트에서 인증 기능만 떼어 별도 앱으로 만들었습니다.
+외교부에 납품한 보안 솔루션에서 **MFA(다중 인증)용 QR 인증을 수행하는 iOS 앱**입니다. 외교부가 쓰는 Windows 에이전트는 Switch 제품이라, 서버 버전이 다른 PribitConnect QR 앱으로는 인증할 수 없었습니다.
 
 ---
 
 ## 배경 및 목표
 
-- **배경**: PRIBIT Connect iOS 에이전트에는 네트워크 필터링 기능이 포함되어 있는데, 이 기능이 Apple 개인정보 보호 정책에 걸려 App Store로 배포할 수 없었습니다. 그런데 외교부는 MFA QR 인증용 iOS 앱을 App Store로 배포해 달라고 요구했습니다.
-- **목표**: 정책 문제가 되는 기능을 빼고 **MFA QR 인증 기능만 갖춘 앱**을 만들어 기한 내에 App Store 심사를 통과하고 배포하는 것
+- **배경**: 외교부는 MFA QR 인증용 iOS 앱을 App Store로 배포해 달라고 요구했습니다. Switch iOS도 QR 인증은 되지만 패킷 필터(NEFilterDataProvider) 때문에 App Store에 배포할 수 없었습니다.
+- **목표**: 외교부 형상에 맞춘 **MFA QR 인증 앱**을 별도로 만들어 기한 내에 App Store 심사를 통과하고 배포하는 것
 
 ---
 
@@ -41,7 +41,7 @@ order: 4
 
 ## 담당 역할 및 기여
 
-- 기존 에이전트 비즈니스 로직에서 **MFA 인증 기능만 사용하도록 코드 설계**
+- [KCMVP 대응]({{ '/portfolio/security-function-confirmation/' | relative_url }}) 때 UIKit으로 만든 iOS 앱에서 **MFA QR 인증 기능만 남겨 설계**
 - TestFlight로 QA(품질 인증) 진행, 외교부에 TestFlight 권한을 부여해 고객사 테스트 진행
 - App Store 심사 대응: Apple Developer 사이트와 메일로 Apple 고객 센터와 소통하며 기한 내에 심사·배포
 - 배포 후 버그 수정과 고객사 요구사항 반영 유지보수
@@ -50,10 +50,10 @@ order: 4
 
 ## 주요 기능 및 구현
 
-### 1. 기존 에이전트에서 MFA 인증 기능 분리
+### 1. 기반 앱 활용
 
-- **설명**: 네트워크 필터링을 빼고 QR 기반 MFA 인증만 수행합니다.
-- **구현**: 기존 PRIBIT Connect iOS 에이전트의 비즈니스 로직에서 MFA 인증 부분만 사용하도록 설계했습니다. [확인 필요 — 공통 코드를 공유한 방식(타겟 분리, 모듈 분리, 빌드 설정 등)]
+- **설명**: QR 기반 MFA 인증을 수행합니다.
+- **구현**: KCMVP 대응 때 UIKit으로 만든 iOS 앱에서 MFA QR 인증 기능만 남겨 설계했습니다. [확인 필요 — 공통 코드를 공유한 방식(타겟 분리, 모듈 분리, 빌드 설정 등)]
 
 ### 2. TestFlight 기반 검증 → App Store 배포
 
