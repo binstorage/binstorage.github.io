@@ -3,15 +3,15 @@ layout: post
 title: "앱 번들의 openssl.framework는 왜 비어 있을까 — static으로 링크된 바이너리 프레임워크와 Xcode의 stub 주입"
 date: 2026-11-10
 categories: [macOS]
-description: "PacketGO.app/Contents/Frameworks에 openssl.framework가 dylib으로 들어 있지만, 실제 OpenSSL 코드는 앱과 시스템 익스텐션 실행 파일 안에 static으로 링크되어 있다. file, otool, nm으로 프레임워크가 비어 있음을 확인하고, 빌드 로그에서 Xcode가 static 바이너리를 빼고 /dev/null로 만든 stub dylib을 주입하는 과정을 추적한다."
+description: "TestApp.app/Contents/Frameworks에 openssl.framework가 dylib으로 들어 있지만, 실제 OpenSSL 코드는 앱과 시스템 익스텐션 실행 파일 안에 static으로 링크되어 있다. file, otool, nm으로 프레임워크가 비어 있음을 확인하고, 빌드 로그에서 Xcode가 static 바이너리를 빼고 /dev/null로 만든 stub dylib을 주입하는 과정을 추적한다."
 ---
 
 > 이 글은 [정적 라이브러리 vs 동적 라이브러리 — 빌드와 런타임에서 실제로 일어나는 일]({% post_url 2026-10-29-static-vs-dynamic-library-build-runtime %}), [iOS UILayer를 .dynamic 패키지로]({% post_url 2026-11-10-ios-uilayer-dynamic-package-promotion %})와 같은 도구(otool, nm)를 사용한다.
 
-PacketGO.app 번들을 열어 보면 `Contents/Frameworks`에 `openssl.framework`가 있다.
+TestApp.app 번들을 열어 보면 `Contents/Frameworks`에 `openssl.framework`가 있다.
 
 ```
-PacketGO.app/Contents/Frameworks/
+TestApp.app/Contents/Frameworks/
 ├── libswiftCompatibilitySpan.dylib
 ├── openssl.framework
 └── WebSocketModule.framework
@@ -20,7 +20,7 @@ PacketGO.app/Contents/Frameworks/
 `file`로 보면 dylib이다.
 
 ```bash
-$ file PacketGO.app/Contents/Frameworks/openssl.framework/openssl
+$ file TestApp.app/Contents/Frameworks/openssl.framework/openssl
 openssl.framework/openssl: Mach-O universal binary with 1 architecture: [arm64:Mach-O 64-bit dynamically linked shared library arm64]
 ```
 
@@ -125,7 +125,7 @@ $ ls -l $X/Versions/A/openssl
 ### 크기
 
 ```bash
-$ ls -l PacketGO.app/Contents/Frameworks/openssl.framework/Versions/A/openssl
+$ ls -l TestApp.app/Contents/Frameworks/openssl.framework/Versions/A/openssl
 -rwxr-xr-x  ... 51392  openssl
 ```
 
@@ -134,7 +134,7 @@ $ ls -l PacketGO.app/Contents/Frameworks/openssl.framework/Versions/A/openssl
 ### 코드 섹션 (`otool -l`)
 
 ```bash
-$ otool -l PacketGO.app/Contents/Frameworks/openssl.framework/openssl | grep -B1 -A5 'sectname __text'
+$ otool -l TestApp.app/Contents/Frameworks/openssl.framework/openssl | grep -B1 -A5 'sectname __text'
 Section
   sectname __text
    segname __TEXT
@@ -148,7 +148,7 @@ Section
 ### 심볼 (`nm`)
 
 ```bash
-$ nm -gU PacketGO.app/Contents/Frameworks/openssl.framework/openssl
+$ nm -gU TestApp.app/Contents/Frameworks/openssl.framework/openssl
 .../openssl.framework/openssl: no symbols
 ```
 
@@ -157,12 +157,12 @@ $ nm -gU PacketGO.app/Contents/Frameworks/openssl.framework/openssl
 ### install name과 의존성 (`otool -L`, `otool -l`)
 
 ```bash
-$ otool -L PacketGO.app/Contents/Frameworks/openssl.framework/openssl
+$ otool -L TestApp.app/Contents/Frameworks/openssl.framework/openssl
 openssl.framework/openssl (architecture arm64):
 	@rpath/openssl.framework/openssl (compatibility version 0.0.0, current version 0.0.0)
 	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1359.40.3)
 
-$ otool -l PacketGO.app/Contents/Frameworks/openssl.framework/openssl | grep -A3 LC_ID_DYLIB
+$ otool -l TestApp.app/Contents/Frameworks/openssl.framework/openssl | grep -A3 LC_ID_DYLIB
           cmd LC_ID_DYLIB
       cmdsize 64
          name @rpath/openssl.framework/openssl (offset 24)
@@ -173,7 +173,7 @@ $ otool -l PacketGO.app/Contents/Frameworks/openssl.framework/openssl | grep -A3
 ### 배포 타깃
 
 ```bash
-$ otool -l PacketGO.app/Contents/Frameworks/openssl.framework/openssl | grep -A3 LC_BUILD_VERSION
+$ otool -l TestApp.app/Contents/Frameworks/openssl.framework/openssl | grep -A3 LC_BUILD_VERSION
       cmd LC_BUILD_VERSION
   cmdsize 32
  platform 1
@@ -189,16 +189,16 @@ $ otool -l PacketGO.app/Contents/Frameworks/openssl.framework/openssl | grep -A3
 앱 번들 안의 모든 실행 바이너리에서 `otool -L`로 openssl을 찾는다.
 
 ```bash
-$ otool -L PacketGO.app/Contents/MacOS/PacketGO.debug.dylib | grep -i openssl
+$ otool -L TestApp.app/Contents/MacOS/TestApp.debug.dylib | grep -i openssl
 (출력 없음)
 
-$ otool -L PacketGO.app/Contents/Library/SystemExtensions/*ContentFilterData*.systemextension/Contents/MacOS/* | grep -i openssl
+$ otool -L TestApp.app/Contents/Library/SystemExtensions/*ContentFilterData*.systemextension/Contents/MacOS/* | grep -i openssl
 (출력 없음)
 ```
 
 `LC_LOAD_DYLIB`에 `openssl.framework`를 기록한 바이너리가 없다. dyld는 실행할 때 이 프레임워크를 **열지 않는다.**
 
-> Debug 빌드에서는 앱의 실제 코드가 `PacketGO`가 아니라 `PacketGO.debug.dylib`에 들어 있다(`ENABLE_DEBUG_DYLIB`). 그래서 `MacOS/PacketGO`가 아니라 `PacketGO.debug.dylib`을 확인한다.
+> Debug 빌드에서는 앱의 실제 코드가 `TestApp`가 아니라 `TestApp.debug.dylib`에 들어 있다(`ENABLE_DEBUG_DYLIB`). 그래서 `MacOS/TestApp`가 아니라 `TestApp.debug.dylib`을 확인한다.
 
 ---
 
@@ -207,7 +207,7 @@ $ otool -L PacketGO.app/Contents/Library/SystemExtensions/*ContentFilterData*.sy
 그렇다면 OpenSSL 함수는 어디에 있을까? `nm -m`으로 앱 바이너리에서 대표적인 OpenSSL 함수를 찾는다.
 
 ```bash
-$ nm -m PacketGO.app/Contents/MacOS/PacketGO.debug.dylib | grep -E '_(SSL_CTX_new|EVP_EncryptInit_ex)$'
+$ nm -m TestApp.app/Contents/MacOS/TestApp.debug.dylib | grep -E '_(SSL_CTX_new|EVP_EncryptInit_ex)$'
 0000000001313128 (__TEXT,__text) external _EVP_EncryptInit_ex
 0000000001480df0 (__TEXT,__text) external _SSL_CTX_new
 ```
@@ -218,11 +218,11 @@ $ nm -m PacketGO.app/Contents/MacOS/PacketGO.debug.dylib | grep -E '_(SSL_CTX_ne
 
 ```bash
 # openssl에서 가져오는 미정의 심볼
-$ nm -m PacketGO.app/Contents/MacOS/PacketGO.debug.dylib | grep -c 'from openssl'
+$ nm -m TestApp.app/Contents/MacOS/TestApp.debug.dylib | grep -c 'from openssl'
 0
 
 # 앱 바이너리 안에 정의된 OpenSSL 함수 (SSL_, EVP_, OPENSSL_, HMAC_, BIO_, X509_ 접두어)
-$ nm -gU PacketGO.app/Contents/MacOS/PacketGO.debug.dylib | grep -cE ' T _(SSL|EVP|OPENSSL|HMAC|BIO|X509)_'
+$ nm -gU TestApp.app/Contents/MacOS/TestApp.debug.dylib | grep -cE ' T _(SSL|EVP|OPENSSL|HMAC|BIO|X509)_'
 2332
 ```
 
@@ -277,7 +277,7 @@ $ otool -l $C/Contents/Frameworks/openssl.framework/openssl | grep -A4 'sectname
 | `otool -L`에 openssl | 없음 |
 | `Contents/Frameworks/openssl.framework` | 앱과 같은 51KB 빈 stub |
 
-앱 번들에 임베드된 시스템 익스텐션(`PacketGO.app/Contents/Library/SystemExtensions/…`)도 결과가 같다.
+앱 번들에 임베드된 시스템 익스텐션(`TestApp.app/Contents/Library/SystemExtensions/…`)도 결과가 같다.
 
 ---
 
@@ -290,7 +290,7 @@ $ otool -l $C/Contents/Frameworks/openssl.framework/openssl | grep -A4 'sectname
 Xcode 빌드 로그는 DerivedData의 `Logs/Build/*.xcactivitylog`에 gzip 압축 형태로 남는다.
 
 ```bash
-DD=~/Library/Developer/Xcode/DerivedData/PacketGO-xxxx
+DD=~/Library/Developer/Xcode/DerivedData/TestApp-xxxx
 for L in $DD/Logs/Build/*.xcactivitylog; do
   gunzip -c "$L" | tr '\r' '\n' | grep -a -o '.\{0,200\}openssl\.framework.\{0,150\}' | head
 done
@@ -299,7 +299,7 @@ done
 남아 있는 로그에서는 두 가지만 찾을 수 있었다.
 
 - 헤더 include: `CryptoCTR.m`이 `Build/Products/Debug/openssl.framework/Headers/evp.h`를 include한 기록
-- 링크: `PacketGO.debug.dylib`과 ContentFilterData의 링크 명령에 `-framework openssl`
+- 링크: `TestApp.debug.dylib`과 ContentFilterData의 링크 명령에 `-framework openssl`
 
 stub이 만들어진 시각의 빌드 로그는 지워져 있었다. 증분 빌드에서는 이미 만들어진 stub을 다시 만들지 않으므로 로그에 나타나지도 않는다.
 
@@ -309,10 +309,10 @@ stub이 만들어진 시각의 빌드 로그는 지워져 있었다. 증분 빌�
 
 ```bash
 DD=/tmp/dd_openssl     # 새 DerivedData 경로
-xcodebuild -project PacketGO/PacketGO.xcodeproj -scheme PacketGO -configuration Debug \
+xcodebuild -project TestApp/TestApp.xcodeproj -scheme TestApp -configuration Debug \
   -destination 'platform=macOS,arch=arm64' \
   -derivedDataPath $DD \
-  -clonedSourcePackagesDirPath ~/Library/Developer/Xcode/DerivedData/PacketGO-xxxx/SourcePackages \
+  -clonedSourcePackagesDirPath ~/Library/Developer/Xcode/DerivedData/TestApp-xxxx/SourcePackages \
   CODE_SIGNING_ALLOWED=NO \
   build > openssl.log 2>&1
 ```
@@ -329,7 +329,7 @@ xcodebuild -project PacketGO/PacketGO.xcodeproj -scheme PacketGO -configuration 
 $ grep -nE '^[A-Z][A-Za-z]+ .*openssl' openssl.log
 2613:ProcessXCFramework .../openssl-apple/Artifacts/3.5.7/openssl.xcframework $DD/Build/Products/Debug/openssl.framework macos
 15136:Copy $DD/Build/Products/Debug/com.example.app.ContentFilterData-macOS.systemextension/Contents/Frameworks/openssl.framework .../openssl.xcframework/macos-arm64_x86_64/openssl.framework
-17976:Copy $DD/Build/Products/Debug/PacketGO.app/Contents/Frameworks/openssl.framework .../openssl.xcframework/macos-arm64_x86_64/openssl.framework (in target 'PacketGO' from project 'PacketGO')
+17976:Copy $DD/Build/Products/Debug/TestApp.app/Contents/Frameworks/openssl.framework .../openssl.xcframework/macos-arm64_x86_64/openssl.framework (in target 'TestApp' from project 'TestApp')
 ```
 
 세 단계가 나온다.
@@ -350,18 +350,18 @@ $ file $DD/Build/Products/Debug/openssl.framework/Versions/A/openssl
 Mach-O universal binary with 2 architectures: [x86_64:current ar archive random library] [arm64]
 ```
 
-이 파일은 여전히 **static 아카이브**다. 각 타깃은 링크 단계에서 `-F $DD/Build/Products/Debug -framework openssl`로 이 아카이브를 링크한다. 그래서 OpenSSL 코드가 `PacketGO.debug.dylib`과 ContentFilterData 실행 파일 안에 복사된다(검증 4, 5).
+이 파일은 여전히 **static 아카이브**다. 각 타깃은 링크 단계에서 `-F $DD/Build/Products/Debug -framework openssl`로 이 아카이브를 링크한다. 그래서 OpenSSL 코드가 `TestApp.debug.dylib`과 ContentFilterData 실행 파일 안에 복사된다(검증 4, 5).
 
 ### ② Copy — 바이너리를 빼고 번들만 복사한다
 
 ```bash
 $ sed -n '17976,17978p' openssl.log
-Copy $DD/.../PacketGO.app/Contents/Frameworks/openssl.framework .../openssl.xcframework/macos-arm64_x86_64/openssl.framework (in target 'PacketGO' from project 'PacketGO')
-    cd PacketGO
+Copy $DD/.../TestApp.app/Contents/Frameworks/openssl.framework .../openssl.xcframework/macos-arm64_x86_64/openssl.framework (in target 'TestApp' from project 'TestApp')
+    cd TestApp
     builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg \
       -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd \
       -resolve-src-symlinks -remove-static-executable \
-      .../openssl.xcframework/macos-arm64_x86_64/openssl.framework $DD/.../PacketGO.app/Contents/Frameworks
+      .../openssl.xcframework/macos-arm64_x86_64/openssl.framework $DD/.../TestApp.app/Contents/Frameworks
 ```
 
 Embed 단계에서 프레임워크를 앱 번들로 복사한다. 두 가지 옵션이 중요하다.
@@ -379,11 +379,11 @@ Embed 단계에서 프레임워크를 앱 번들로 복사한다. 두 가지 옵
 
 ```bash
 $ sed -n '17979,17982p' openssl.log
-note: Injecting stub binary into codeless framework (in target 'PacketGO' from project 'PacketGO')
+note: Injecting stub binary into codeless framework (in target 'TestApp' from project 'TestApp')
     clang -isysroot .../MacOSX27.2.sdk -x c -c /dev/null -target arm64-apple-macos15.0 -o .../arm64-apple.o
     clang -isysroot .../MacOSX27.2.sdk -dynamiclib -Xlinker -adhoc_codesign -target arm64-apple-macos15.0 \
       -install_name @rpath/openssl.framework/openssl -o .../arm64-apple .../arm64-apple.o
-    lipo -create -output $DD/.../PacketGO.app/Contents/Frameworks/openssl.framework/Versions/A/openssl .../arm64-apple
+    lipo -create -output $DD/.../TestApp.app/Contents/Frameworks/openssl.framework/Versions/A/openssl .../arm64-apple
 ```
 
 Xcode가 **"codeless framework에 stub 바이너리를 주입한다"**고 직접 알려 준다. 과정은 이렇다.
@@ -406,15 +406,15 @@ ContentFilterData 쪽(15136번째 줄)도 같은 Copy와 stub 주입 과정을 �
 
 ```bash
 $ find $DD/Build/Products/Debug -path '*Frameworks/openssl.framework/Versions/A/openssl' -exec ls -l {} \;
--rwxr-xr-x  ... 33128  .../PacketGO.app/Contents/Frameworks/openssl.framework/Versions/A/openssl
+-rwxr-xr-x  ... 33128  .../TestApp.app/Contents/Frameworks/openssl.framework/Versions/A/openssl
 -rwxr-xr-x  ... 33128  .../ContentFilterData-macOS.systemextension/Contents/Frameworks/openssl.framework/Versions/A/openssl
--rwxr-xr-x  ... 33128  .../PacketGO.app/Contents/Library/SystemExtensions/...ContentFilterData-macOS.systemextension/Contents/Frameworks/openssl.framework/Versions/A/openssl
+-rwxr-xr-x  ... 33128  .../TestApp.app/Contents/Library/SystemExtensions/...ContentFilterData-macOS.systemextension/Contents/Frameworks/openssl.framework/Versions/A/openssl
 ```
 
 실제 앱(서명 포함)에서는 팀 서명이 붙어 51KB가 된다.
 
 ```bash
-$ codesign -dv PacketGO.app/Contents/Frameworks/openssl.framework/openssl 2>&1 | grep -E 'Identifier|Format'
+$ codesign -dv TestApp.app/Contents/Frameworks/openssl.framework/openssl 2>&1 | grep -E 'Identifier|Format'
 Identifier=org.openssl.OpenSSL
 Format=bundle with Mach-O universal (arm64)
 TeamIdentifier=XXXXXXXXXX
@@ -432,7 +432,7 @@ openssl.xcframework (macOS 슬라이스 = static ar archive, 20MB)
         ├─① ProcessXCFramework ──▶ Products/Debug/openssl.framework (static 그대로)
         │                                 │
         │                                 └─ 링크: -framework openssl
-        │                                      ├─▶ PacketGO.debug.dylib 안에 OpenSSL 코드 복사
+        │                                      ├─▶ TestApp.debug.dylib 안에 OpenSSL 코드 복사
         │                                      └─▶ ContentFilterData 실행 파일 안에 OpenSSL 코드 복사
         │
         └─② Copy (Embed, -remove-static-executable) ──▶ 바이너리 없는 번들

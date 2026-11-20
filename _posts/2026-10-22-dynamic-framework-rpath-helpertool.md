@@ -10,7 +10,7 @@ UILayerModule(Dynamic Framework)을 앱에 추가했을 뿐인데, 전혀 관련
 
 ```
 ASI found [dyld] (sensitive) 'Library not loaded: @rpath/Domain_17E53062B3BFDE_PackageProduct.framework/Versions/A/Domain_17E53062B3BFDE_PackageProduct
-  Referenced from: /Library/PrivilegedHelperTools/com.pribit.application.packetgo.switch.sase.HelperTool
+  Referenced from: /Library/PrivilegedHelperTools/com.example.app.HelperTool
   Reason: no LC_RPATH's found'
 ```
 

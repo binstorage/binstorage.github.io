@@ -266,9 +266,9 @@ nm -u /Library/PrivilegedHelperTools/HelperTool | grep -c '^_$s6Domain'
 Xcode 16부터 Debug 빌드는 `ENABLE_DEBUG_DYLIB` 설정에 따라 앱을 두 파일로 나눈다.
 
 ```
-PacketGO.app/Contents/MacOS/
-├── PacketGO               ← 실행만 담당하는 작은 stub
-├── PacketGO.debug.dylib   ← 실제 앱 코드 + static 링크된 모듈
+TestApp.app/Contents/MacOS/
+├── TestApp               ← 실행만 담당하는 작은 stub
+├── TestApp.debug.dylib   ← 실제 앱 코드 + static 링크된 모듈
 └── __preview.dylib        ← SwiftUI Preview용
 ```
 
@@ -276,10 +276,10 @@ PacketGO.app/Contents/MacOS/
 
 | 파일 | 크기 | 정의된 심볼 |
 |------|------|------|
-| `PacketGO` | 약 60KB | 27개 |
-| `PacketGO.debug.dylib` | 약 66MB | Domain 모듈 심볼만 6,989개 |
+| `TestApp` | 약 60KB | 27개 |
+| `TestApp.debug.dylib` | 약 66MB | Domain 모듈 심볼만 6,989개 |
 
-`PacketGO`에 정의된 27개 심볼은 모두 debug dylib을 찾아서 실행하는 코드다.
+`TestApp`에 정의된 27개 심볼은 모두 debug dylib을 찾아서 실행하는 코드다.
 
 ```
 ___debug_blank_executor_main
@@ -290,7 +290,7 @@ _abort_failed_to_open___debug_dylib
 ...
 ```
 
-`otool -L PacketGO`를 실행하면 `@rpath/PacketGO.debug.dylib` 한 줄만 나온다. 실행하면 stub이 이 dylib을 열고, 그 안의 진짜 `main`을 찾아 호출한다.
+`otool -L TestApp`를 실행하면 `@rpath/TestApp.debug.dylib` 한 줄만 나온다. 실행하면 stub이 이 dylib을 열고, 그 안의 진짜 `main`을 찾아 호출한다.
 
 이렇게 나누는 이유는 **SwiftUI Preview**다. Preview는 앱 코드를 다시 불러와서 뷰를 렌더링해야 한다. 앱 코드가 실행 파일에 박혀 있으면 그렇게 하기 어렵고, dylib으로 분리되어 있어야 Preview가 불러다 쓸 수 있다.
 
@@ -298,14 +298,14 @@ Release 빌드와 Archive에는 `.debug.dylib`이 없고(`ENABLE_DEBUG_DYLIB = N
 
 | 빌드 | 확인할 파일 |
 |------|------|
-| Debug (Xcode에서 Run) | `Contents/MacOS/PacketGO.debug.dylib` |
-| Release, Archive | `Contents/MacOS/PacketGO` |
+| Debug (Xcode에서 Run) | `Contents/MacOS/TestApp.debug.dylib` |
+| Release, Archive | `Contents/MacOS/TestApp` |
 
 #### 확인 방법
 
 ```bash
-A=.../Build/Products/Debug/PacketGO.app
-B=$A/Contents/MacOS/PacketGO.debug.dylib   # Release라면 $A/Contents/MacOS/PacketGO
+A=.../Build/Products/Debug/TestApp.app
+B=$A/Contents/MacOS/TestApp.debug.dylib   # Release라면 $A/Contents/MacOS/TestApp
 
 # 1. 동적 로드 대상에 Domain이 없는지
 otool -L $B | grep -i domain
@@ -456,7 +456,7 @@ automatic과 `.static`을 **같은 방법**으로 비교했다. `UILayer/Package
 
 ```bash
 DD=/tmp/dd_static     # 새 DerivedData 경로
-xcodebuild -project PacketGO/PacketGO.xcodeproj -scheme PacketGO -configuration Debug \
+xcodebuild -project TestApp/TestApp.xcodeproj -scheme TestApp -configuration Debug \
   -destination 'platform=macOS,arch=arm64' -derivedDataPath $DD build > static.log 2>&1
 
 grep -E "\*\* BUILD" static.log              # 빌드 결과
@@ -474,21 +474,21 @@ find $DD/Build -iname '*UILayer*.a'           # .a 파일이 있는가
 grep -E "^Libtool .*UILayer" static.log       # 아카이브를 만드는 Libtool 단계가 있었는가
 
 # 2. 앱 링크 입력에 중복이 있는가
-F=$DD/Build/Intermediates.noindex/PacketGO.build/Debug/PacketGO.build/Objects-normal/arm64/PacketGO.LinkFileList
+F=$DD/Build/Intermediates.noindex/TestApp.build/Debug/TestApp.build/Objects-normal/arm64/TestApp.LinkFileList
 xargs -n1 basename < $F | sort | uniq -c | awk '$1>1'                                  # 두 번 이상 나온 입력
 xargs -n1 basename < $F | grep -E "^(UILayer|Domain|ComposableArchitecture|SwiftyBeaver)\.o$"
 
 # 3. 우려의 전제 조건(-ObjC)이 그대로 있는가
-grep -A4 "^Ld .*PacketGO.debug.dylib" static.log | grep -o -- "-Xlinker -ObjC" | head -1
+grep -A4 "^Ld .*TestApp.debug.dylib" static.log | grep -o -- "-Xlinker -ObjC" | head -1
 
 # 4. 링킹 형태가 바뀌지 않았는가 (승격 여부, HelperTool·앱의 static 링크)
 ls $B/PackageFrameworks
 nm -gU $B/*HelperTool | awk '{print $3}' | grep -c '^_[$]s6Domain'      # 정의된 Domain 심볼
 nm -u  $B/*HelperTool | grep -c '^_[$]s6Domain'                         # 외부 참조 Domain 심볼
-A=$B/PacketGO.app/Contents/MacOS/PacketGO.debug.dylib
+A=$B/TestApp.app/Contents/MacOS/TestApp.debug.dylib
 nm -gU $A | awk '{print $3}' | grep -c '^_[$]s6Domain'
 nm -gU $A | awk '{print $3}' | grep -c '^_[$]s7UILayer'
-ls $B/PacketGO.app/Contents/Frameworks
+ls $B/TestApp.app/Contents/Frameworks
 ```
 
 | 확인 | 의미 |
@@ -782,7 +782,7 @@ nm -m $P/TCAProbe.o | grep undefined | grep '_[$]s22ComposableArchitecture' | he
 
 - **`.dynamic` 두 가지는 코드가 같다.** TCAProbe 61개, TCA 2140개로 숫자가 같고, 둘 다 automatic 타입인 TCA를 static으로 품고 있다. 다른 것은 **포장 형태와 install name뿐**이다. swift build는 `lib*.dylib`를 만들고, Xcode는 앱에 임베드할 수 있도록 같은 dylib을 `.framework`로 포장하면서 확장자를 뗀다.
 - **`.static` · swift build는 의존성까지 묶은 독립 아카이브다.** TCA와 그 의존 패키지 `.o`를 모두 담았다. TCA 미정의 20개는 `TCAProbe.o` 멤버가 참조하는 것이고, 같은 아카이브 안의 `ComposableArchitecture.o`가 정의하고 있다. 이 `.a`를 이미 TCA를 링크하는 앱에 가져다 쓰면 UILayer_Static과 같은 이중 포함 구조가 된다. "`.static`으로 명시하면?"에서 걱정한 모습 그대로다.
-- **`.static` · xcodebuild는 자기 코드만 담은 오브젝트다.** TCA는 참조만 하고(정의 0, 미정의 20), 옆에 `ComposableArchitecture.o`로 따로 있다. 어디에 넣을지는 이 패키지를 쓰는 타겟을 링크할 때 정해진다. PacketGO에서 `.static`으로 명시한 UILayer가 `UILayer.o` 하나로만 나온 것과 같은 모습이다.
+- **`.static` · xcodebuild는 자기 코드만 담은 오브젝트다.** TCA는 참조만 하고(정의 0, 미정의 20), 옆에 `ComposableArchitecture.o`로 따로 있다. 어디에 넣을지는 이 패키지를 쓰는 타겟을 링크할 때 정해진다. TestApp에서 `.static`으로 명시한 UILayer가 `UILayer.o` 하나로만 나온 것과 같은 모습이다.
 - **TCAProbe 정의 61개는 네 경우 모두 같다.** 자기 코드는 항상 그대로 들어가고, 달라지는 것은 의존성(TCA)을 어디에 두느냐다.
 - **`otool -D`, `otool -L`은 dylib에만 의미가 있다.** `.a`와 `.o`에는 로드 정보(load command)가 없어서 아무것도 나오지 않는다.
 
@@ -814,7 +814,7 @@ Probe.o                ← 입력은 이것 하나
 - **`.static` · swift build**: 링크는 아니지만, SwiftPM이 `.static` product를 **외부에 가져다 쓸 독립 결과물**로 만든다. 이 `.a`를 받는 쪽은 TCA가 필요하다는 것을 모르므로, TCA를 포함한 의존성 `.o`를 함께 담는다.
 - **`.static` · xcodebuild**: Xcode는 패키지 그래프 전체를 알고 있으므로 독립 결과물을 만들 필요가 없다. 모듈마다 `.o`를 하나씩(`TCAProbe.o`, `ComposableArchitecture.o`, …) 만들어 두고, 최종 타겟을 링크할 때 필요한 `.o`를 **한 번씩만** 넘긴다. 미리 묶어 두면 앱이 이미 링크한 TCA와 겹칠 수 있으니(UILayer_Static의 이중 포함) 결정을 마지막까지 미루는 구조다.
 
-PacketGO에서 `.static`으로 명시한 UILayer가 duplicate symbol 없이 링크된 것도 같은 이유다. 앱 링크 입력에 `UILayer.o`, `Domain.o`, `ComposableArchitecture.o`가 각각 한 번씩만 들어갔다(본문 "`.static`으로 명시하면?"의 결과 표).
+TestApp에서 `.static`으로 명시한 UILayer가 duplicate symbol 없이 링크된 것도 같은 이유다. 앱 링크 입력에 `UILayer.o`, `Domain.o`, `ComposableArchitecture.o`가 각각 한 번씩만 들어갔다(본문 "`.static`으로 명시하면?"의 결과 표).
 
 **왜 `.dynamic`에만 TCA 미정의 심볼이 없나**
 
@@ -869,8 +869,8 @@ grep -c "^Libtool" xb.log   # 셋 다 0
 
 - `.o`는 product가 아니라 **타겟 단위**로 만들어진다. 타겟의 소스 오브젝트를 `ld -r`로 합친 것이다. TCAProbe와 TCA, 그 의존 패키지까지 타겟마다 하나씩 23개다.
 - `.dynamic`은 여기에 더해 이 `.o`들을 dylib으로 링크해 `.framework`로 포장한다.
-- automatic과 `.static`은 Xcode 안에서 결과가 같다. 본문에서 PacketGO의 UILayer를 automatic과 `.static`으로 비교했을 때 둘 다 `UILayer.o` 하나만 나온 것과 같다.
-- automatic은 원래 이 상태로 남지만, 앱과 같은 프로세스의 동적 바이너리가 함께 쓰면 `X_…_PackageProduct.framework`로 **승격**된다. 이 경우는 TCAProbe가 아니라 PacketGO에서 관찰한 것이다.
+- automatic과 `.static`은 Xcode 안에서 결과가 같다. 본문에서 TestApp의 UILayer를 automatic과 `.static`으로 비교했을 때 둘 다 `UILayer.o` 하나만 나온 것과 같다.
+- automatic은 원래 이 상태로 남지만, 앱과 같은 프로세스의 동적 바이너리가 함께 쓰면 `X_…_PackageProduct.framework`로 **승격**된다. 이 경우는 TCAProbe가 아니라 TestApp에서 관찰한 것이다.
 
 **swift build** (`.build/out/Products/Debug-iphoneos/`)
 

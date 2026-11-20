@@ -150,15 +150,15 @@ comm -12 <(nm -gU <바이너리A> | awk '{print $3}' | sort) \
 실기기 Debug 빌드 기준이다. 실기기 빌드는 arm64 하나뿐이라 `nm`, `otool`에 `-arch`가 필요 없다(시뮬레이터 빌드는 `-arch arm64`를 붙인다).
 
 ```bash
-P=~/Library/Developer/Xcode/DerivedData/PacketGO-<hash>/Build/Products/Debug-iphoneos
-APP=$P/PacketGO.app
+P=~/Library/Developer/Xcode/DerivedData/TestApp-<hash>/Build/Products/Debug-iphoneos
+APP=$P/TestApp.app
 U=$APP/Frameworks/UILayer.framework/UILayer                    # UILayer
-A=$APP/PacketGO.debug.dylib                                     # 앱 (Debug 빌드라 실제 코드는 여기)
+A=$APP/TestApp.debug.dylib                                     # 앱 (Debug 빌드라 실제 코드는 여기)
 X=$APP/PlugIns/PGxFSSLVPN.appex/PGxFSSLVPN.debug.dylib         # 익스텐션
 D=$(ls $APP/Frameworks/Domain_*_PackageProduct.framework/Domain_*_PackageProduct 2>/dev/null)   # 승격된 Domain
 ```
 
-> Debug 빌드에서는 `ENABLE_DEBUG_DYLIB` 때문에 앱 실행 파일(`PacketGO`)이 stub이고 실제 코드는 `PacketGO.debug.dylib`에 있다. iOS 앱 번들은 macOS와 달리 `Contents/MacOS` 없이 평평한 구조다.
+> Debug 빌드에서는 `ENABLE_DEBUG_DYLIB` 때문에 앱 실행 파일(`TestApp`)이 stub이고 실제 코드는 `TestApp.debug.dylib`에 있다. iOS 앱 번들은 macOS와 달리 `Contents/MacOS` 없이 평평한 구조다.
 >
 > **다시 한번 확인하기**: stub과 `.debug.dylib` 구조, Release 빌드에서는 어떤 파일을 봐야 하는지 → [Static Framework의 패키지 이중 포함과 -ObjC]({% post_url 2026-11-09-static-framework-duplicate-symbol-objc %})의 "Debug 빌드의 앱 실행 파일은 껍데기다"
 
@@ -383,41 +383,41 @@ ls $APP/Frameworks
 CreateUniversalBinary …/Debug-iphonesimulator/PackageFrameworks/UILayer.framework/UILayer normal arm64\ x86_64 (in target 'UILayer-product' from project 'UILayer')
 
 # 앱 번들로 복사되는 것은 이것뿐이다
-Copy …/PacketGO.app/Frameworks/openssl.framework …/openssl.xcframework/ios-arm64_x86_64-simulator/openssl.framework
-Copy …/PacketGO.app/Frameworks/WebSocketModule.framework …/PackageFrameworks/WebSocketModule.framework (in target 'PacketGO' from project 'PacketGO')
-Copy …/PacketGO.app/Frameworks/Logger_19F76B3DFF5FE6_PackageProduct.framework …/PackageFrameworks/Logger_19F76B3DFF5FE6_PackageProduct.framework (in target 'PacketGO' from project 'PacketGO')
-Copy …/PacketGO.app/Frameworks/Domain_17E53062B3BFDE_PackageProduct.framework …/PackageFrameworks/Domain_17E53062B3BFDE_PackageProduct.framework (in target 'PacketGO' from project 'PacketGO')
-Copy …/PacketGO.app/Frameworks/DataFlowDomain_-4B04C528ADEC4588_PackageProduct.framework …/PackageFrameworks/DataFlowDomain_-4B04C528ADEC4588_PackageProduct.framework (in target 'PacketGO' from project 'PacketGO')
-# → UILayer.framework를 PacketGO.app/Frameworks로 복사하는 줄이 없다
+Copy …/TestApp.app/Frameworks/openssl.framework …/openssl.xcframework/ios-arm64_x86_64-simulator/openssl.framework
+Copy …/TestApp.app/Frameworks/WebSocketModule.framework …/PackageFrameworks/WebSocketModule.framework (in target 'TestApp' from project 'TestApp')
+Copy …/TestApp.app/Frameworks/Logger_19F76B3DFF5FE6_PackageProduct.framework …/PackageFrameworks/Logger_19F76B3DFF5FE6_PackageProduct.framework (in target 'TestApp' from project 'TestApp')
+Copy …/TestApp.app/Frameworks/Domain_17E53062B3BFDE_PackageProduct.framework …/PackageFrameworks/Domain_17E53062B3BFDE_PackageProduct.framework (in target 'TestApp' from project 'TestApp')
+Copy …/TestApp.app/Frameworks/DataFlowDomain_-4B04C528ADEC4588_PackageProduct.framework …/PackageFrameworks/DataFlowDomain_-4B04C528ADEC4588_PackageProduct.framework (in target 'TestApp' from project 'TestApp')
+# → UILayer.framework를 TestApp.app/Frameworks로 복사하는 줄이 없다
 ```
 
-UILayer.framework는 빌드 결과물 폴더(`PackageFrameworks`)에 만들어졌지만, 앱 번들로 복사하는 단계가 없었다. 나머지 동적 프레임워크는 모두 `in target 'PacketGO'`로 앱 타겟이 복사했다.
+UILayer.framework는 빌드 결과물 폴더(`PackageFrameworks`)에 만들어졌지만, 앱 번들로 복사하는 단계가 없었다. 나머지 동적 프레임워크는 모두 `in target 'TestApp'`로 앱 타겟이 복사했다.
 
 **Embed & Sign을 추가한 뒤**
 
 ```
-Copy …/PacketGO.app/Frameworks/WebSocketModule.framework …/PackageFrameworks/WebSocketModule.framework (in target 'PacketGO' from project 'PacketGO')
-Copy …/PacketGO.app/Frameworks/Logger_19F76B3DFF5FE6_PackageProduct.framework …/PackageFrameworks/Logger_19F76B3DFF5FE6_PackageProduct.framework (in target 'PacketGO' from project 'PacketGO')
-Copy …/PacketGO.app/Frameworks/Domain_17E53062B3BFDE_PackageProduct.framework …/PackageFrameworks/Domain_17E53062B3BFDE_PackageProduct.framework (in target 'PacketGO' from project 'PacketGO')
-Copy …/PacketGO.app/Frameworks/UILayer.framework …/PackageFrameworks/UILayer.framework (in target 'PacketGO' from project 'PacketGO')   ← 추가됨
-Copy …/PacketGO.app/Frameworks/DataFlowDomain_-4B04C528ADEC4588_PackageProduct.framework …/PackageFrameworks/DataFlowDomain_-4B04C528ADEC4588_PackageProduct.framework (in target 'PacketGO' from project 'PacketGO')
+Copy …/TestApp.app/Frameworks/WebSocketModule.framework …/PackageFrameworks/WebSocketModule.framework (in target 'TestApp' from project 'TestApp')
+Copy …/TestApp.app/Frameworks/Logger_19F76B3DFF5FE6_PackageProduct.framework …/PackageFrameworks/Logger_19F76B3DFF5FE6_PackageProduct.framework (in target 'TestApp' from project 'TestApp')
+Copy …/TestApp.app/Frameworks/Domain_17E53062B3BFDE_PackageProduct.framework …/PackageFrameworks/Domain_17E53062B3BFDE_PackageProduct.framework (in target 'TestApp' from project 'TestApp')
+Copy …/TestApp.app/Frameworks/UILayer.framework …/PackageFrameworks/UILayer.framework (in target 'TestApp' from project 'TestApp')   ← 추가됨
+Copy …/TestApp.app/Frameworks/DataFlowDomain_-4B04C528ADEC4588_PackageProduct.framework …/PackageFrameworks/DataFlowDomain_-4B04C528ADEC4588_PackageProduct.framework (in target 'TestApp' from project 'TestApp')
 ```
 
 (두 번째 빌드는 증분 빌드라 바뀌지 않은 `openssl.framework` 복사 줄은 다시 나오지 않았다.)
 
 이 비교를 직접 해보려면 먼저 빌드 로그를 파일로 남겨야 한다. `xcodebuild` 출력을 `build.log`로 저장한 뒤 필요한 줄만 뽑는다. 증분 빌드에서는 바뀌지 않은 프레임워크의 복사 줄이 빠지므로, **새 DerivedData**에서 처음부터 빌드한다.
 
-명령은 `PacketGO/`와 `UILayer/`가 나란히 있는 저장소 루트에서 실행한다. `-project` 경로가 이 위치를 기준으로 한 상대 경로이기 때문이다.
+명령은 `TestApp/`와 `UILayer/`가 나란히 있는 저장소 루트에서 실행한다. `-project` 경로가 이 위치를 기준으로 한 상대 경로이기 때문이다.
 
 ```bash
-cd <저장소 루트>        # PacketGO/PacketGO.xcodeproj, UILayer/Package.swift가 있는 곳
+cd <저장소 루트>        # TestApp/TestApp.xcodeproj, UILayer/Package.swift가 있는 곳
 DD=/tmp/dd_embed      # 새 DerivedData 경로
-xcodebuild -project PacketGO/PacketGO.xcodeproj -scheme PacketGO -configuration Debug \
+xcodebuild -project TestApp/TestApp.xcodeproj -scheme TestApp -configuration Debug \
   -destination 'generic/platform=iOS Simulator' -derivedDataPath $DD build > build.log 2>&1
 
 grep -E "\*\* BUILD" build.log                           # 빌드 결과
 grep -E "^CreateUniversalBinary .*UILayer" build.log     # UILayer.framework가 만들어졌는가
-grep -E "^Copy .*PacketGO\.app/Frameworks/" build.log    # 앱 번들로 복사되는 프레임워크
+grep -E "^Copy .*TestApp\.app/Frameworks/" build.log    # 앱 번들로 복사되는 프레임워크
 ```
 
 Embed & Sign 전후를 비교하려면 `DD`와 로그 파일 이름만 바꿔서 두 번 실행한다.

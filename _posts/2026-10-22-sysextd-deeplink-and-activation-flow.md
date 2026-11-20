@@ -112,13 +112,13 @@ Network Extension(Content Filter)의 경우:
 ```
 x-apple.systempreferences:com.apple.ExtensionsPreferences
   ?extensionPointIdentifier=com.apple.system_extension.network_extension.extension-point
-  &extensionIdentifier=com.pribit.application.packetgo.switch.sase.ContentFilterData-macOS
+  &extensionIdentifier=com.example.app.ContentFilterData-macOS
 ```
 
 | 파라미터 | 값 | 설명 |
 |---------|---|------|
 | `extensionPointIdentifier` | `com.apple.system_extension.network_extension.extension-point` | Network Extension 카테고리 |
-| `extensionIdentifier` | `com.pribit.application.packetgo.switch.sase.ContentFilterData-macOS` | 시스템 확장 프로그램 번들 ID |
+| `extensionIdentifier` | `com.example.app.ContentFilterData-macOS` | 시스템 확장 프로그램 번들 ID |
 
 코드 적용:
 
@@ -129,7 +129,7 @@ if let url = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Setting
 }
 
 // 변경 후: 확장 프로그램 토글 화면까지 직접 열림
-if let url = URL(string: "x-apple.systempreferences:com.apple.ExtensionsPreferences?extensionPointIdentifier=com.apple.system_extension.network_extension.extension-point&extensionIdentifier=com.pribit.application.packetgo.switch.sase.ContentFilterData-macOS") {
+if let url = URL(string: "x-apple.systempreferences:com.apple.ExtensionsPreferences?extensionPointIdentifier=com.apple.system_extension.network_extension.extension-point&extensionIdentifier=com.example.app.ContentFilterData-macOS") {
     NSWorkspace.shared.open(url)
 }
 ```
@@ -166,8 +166,8 @@ activated_enabled                ← 확장 프로그램 활성화 완료
 ```
 # 1. 기존 확장 프로그램 제거 (재설치 시)
 sysextd: [com.apple.sx:DaemonIPC] dispatchRequest(cmd: uninstall)
-sysextd: [com.apple.sx:StateChange] extension 23SZ5X36V2
-    com.pribit...ContentFilterData-macOS (1.0/669)
+sysextd: [com.apple.sx:StateChange] extension <TeamID>
+    com.example...ContentFilterData-macOS (1.0/669)
     advancing state from activated_waiting_for_user to uninstalling
 sysextd: [com.apple.sx:StateChange]
     ...advancing state from uninstalling to uninstalled
@@ -214,7 +214,7 @@ System Settings: (AE) RECEIVED:(GURL,GURL) ...
 ```
 /Library/SystemExtensions/
 └── {UUID}/
-    └── com.pribit.application.packetgo.switch.sase.ContentFilterData-macOS.systemextension/
+    └── com.example.app.ContentFilterData-macOS.systemextension/
 ```
 
 이 때문에 `activated_waiting_for_user` 상태에서도 System Settings가 `extensionIdentifier`로 해당 확장 프로그램을 `/Library/SystemExtensions/`에서 찾아 토글 화면을 보여줄 수 있다.

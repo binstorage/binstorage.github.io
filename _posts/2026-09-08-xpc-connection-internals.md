@@ -560,14 +560,14 @@ Endpoint Security 익스텐션도 같은 sysextd 경로를 탑니다. 차이는 
 
 ---
 
-## Endpoint Security 익스텐션 — PRIBITEDR 사례
+## Endpoint Security 익스텐션 — TestEDR 사례
 
-Network Extension 외에 **Endpoint Security(ES) 시스템 익스텐션**도 같은 방식으로 XPC 서비스를 노출합니다. 사내 EDR 프로토타입인 `PRIBITEDR`은 ES 익스텐션이고, 컨테이너 앱이 XPC로 파일 정책(삭제·생성·읽기·수정 거부 경로)을 내려보내는 구조입니다. 등록 경로는 Network Extension과 똑같이 sysextd를 거치며, **선언하는 Info.plist 키와 launchd에 보이는 label 형식만 다릅니다.**
+Network Extension 외에 **Endpoint Security(ES) 시스템 익스텐션**도 같은 방식으로 XPC 서비스를 노출합니다. 사내 EDR 프로토타입인 `TestEDR`은 ES 익스텐션이고, 컨테이너 앱이 XPC로 파일 정책(삭제·생성·읽기·수정 거부 경로)을 내려보내는 구조입니다. 등록 경로는 Network Extension과 똑같이 sysextd를 거치며, **선언하는 Info.plist 키와 launchd에 보이는 label 형식만 다릅니다.**
 
 ### 전체 구성
 
 ```
-컨테이너 앱                                    ES 익스텐션 (PRIBITEDR)
+컨테이너 앱                                    ES 익스텐션 (TestEDR)
  │                                              │
  │ 1. OSSystemExtensionRequest (활성화 요청)    │
  │ ────► sysextd ────► launchd system/ 등록 ──► │ 2. es_new_client()
@@ -588,12 +588,12 @@ Network Extension 외에 **Endpoint Security(ES) 시스템 익스텐션**도 같
 ### 1. 서비스 이름 선언 — 익스텐션 Info.plist
 
 ```xml
-<!-- PRIBITEDR.systemextension/Contents/Info.plist -->
+<!-- TestEDR.systemextension/Contents/Info.plist -->
 <key>NSEndpointSecurityMachServiceName</key>
 <string><BundleID></string>
 ```
 
-Network Extension의 `NEMachServiceName`에 해당하는 키입니다. PRIBITEDR에서는 익스텐션 번들 ID를 그대로 서비스 이름으로 사용했습니다. 필요한 entitlement는 다음과 같습니다.
+Network Extension의 `NEMachServiceName`에 해당하는 키입니다. TestEDR에서는 익스텐션 번들 ID를 그대로 서비스 이름으로 사용했습니다. 필요한 entitlement는 다음과 같습니다.
 
 | 대상 | Entitlement |
 |------|------|
@@ -681,7 +681,7 @@ conn.resume()
 
 `remoteObjectProxyWithErrorHandler`로 얻은 프록시에서 reply 블록이 있는 메서드를 호출하면, **reply 블록과 에러 핸들러 중 정확히 하나만** 호출됩니다. 익스텐션이 아직 활성화되지 않았거나 서비스 조회에 실패하면 reply는 오지 않고 에러 핸들러만 불립니다.
 
-PRIBITEDR의 `EndpointSecurityManager`는 reply를 `withCheckedThrowingContinuation`으로 감싸 `async`로 노출하는데, 현재 에러 핸들러는 로그만 남깁니다.
+TestEDR의 `EndpointSecurityManager`는 reply를 `withCheckedThrowingContinuation`으로 감싸 `async`로 노출하는데, 현재 에러 핸들러는 로그만 남깁니다.
 
 ```swift
 // 현재 구조: 에러 시 completion이 호출되지 않음 → continuation이 영원히 resume되지 않음
@@ -845,7 +845,7 @@ enabled  active  teamID    bundleID (version)        name       [state]
 *        *       <TeamID>  <BundleID> (<Version>)    MyFilter   [activated enabled]
 --- com.apple.system_extension.endpoint_security
 enabled  active  teamID    bundleID (version)        name       [state]
-*        *       <TeamID>  <BundleID> (<Version>)    PRIBITEDR  [activated enabled]
+*        *       <TeamID>  <BundleID> (<Version>)    TestEDR  [activated enabled]
 ```
 
 익스텐션이 `[activated enabled]`라면 sysextd가 launchd 등록까지 마친 상태입니다. 시스템 익스텐션은 label이 `<BundleID>`와 다르므로 **먼저 label을 찾고**, 그 label로 상세 정보를 조회합니다.
